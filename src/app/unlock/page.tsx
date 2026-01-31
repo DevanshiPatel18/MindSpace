@@ -34,17 +34,22 @@ export default function UnlockPage() {
   return (
     <div className="grid place-items-center min-h-[70vh]">
       <div className="w-full max-w-md">
-        <Card>
+        <Card className="shadow-[var(--shadow)]">
           <CardBody>
-            <h1 className="text-2xl font-bold text-neutral-900">Unlock</h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-600">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Encrypted on this device
+            </div>
+
+            <h1 className="mt-4 text-2xl font-bold text-neutral-900">Unlock</h1>
             <p className="mt-2 text-sm text-neutral-600">
-              Your journal is encrypted on this device. If you forget your passphrase, entries cannot be recovered.
+              Your journal is stored locally and encrypted. If you forget your passphrase, entries cannot be recovered.
             </p>
 
             <div className="mt-6 space-y-3">
               <input
                 type="password"
-                className="w-full rounded-2xl border border-neutral-200 px-3 py-2 text-sm"
+                className="w-full rounded-2xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
                 placeholder="Enter passphrase"
@@ -54,6 +59,10 @@ export default function UnlockPage() {
               <Button className="w-full" onClick={onUnlock} disabled={busy}>
                 {busy ? "Unlocking…" : "Unlock"}
               </Button>
+
+              <div className="text-xs text-neutral-500">
+                Tip: Use a memorable phrase (e.g., 4–6 words). You can delete everything anytime in Settings.
+              </div>
             </div>
           </CardBody>
         </Card>
