@@ -8,8 +8,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { getRitualById } from "@/lib/rituals";
 import { getSessionKey } from "@/lib/session";
 import { encryptJson, getKdfVersion } from "@/lib/crypto";
-import { getOrCreateAppSaltB64, saveEntryRecord } from "@/lib/storage";
-import { EntryPayload } from "@/lib/types";
+import { getOrCreateAppSaltB64, saveEntryRecord, saveMemoryRecord } from "@/lib/storage";
+import { EntryPayload, MemoryItem } from "@/lib/types";
 import { uuid } from "@/lib/util";
 
 export default function RitualPage() {
@@ -21,6 +21,8 @@ export default function RitualPage() {
   const [text, setText] = React.useState("");
   const [steps, setSteps] = React.useState<EntryPayload["steps"]>([]);
   const [busy, setBusy] = React.useState(false);
+  const [saveMemory, setSaveMemory] = React.useState<"unset" | "yes" | "no">("unset");
+  const [memoryText, setMemoryText] = React.useState("");
 
   if (!ritual) {
     return (
@@ -61,6 +63,28 @@ export default function RitualPage() {
         steps,
         tags: { emotion: null, context: null },
       };
+
+      if (ritual?.intent === "make_sense" && saveMemory === "yes" && memoryText.trim()) {
+        const mem: MemoryItem = {
+          id: uuid(),
+          createdAt: new Date().toISOString(),
+          text: memoryText.trim(),
+        };
+
+        const encMem = await encryptJson(key, mem);
+        const saltB64 = await getOrCreateAppSaltB64();
+
+        await saveMemoryRecord({
+          id: mem.id,
+          createdAt: mem.createdAt,
+          ritualName: "Memory",
+          intent: "make_sense",
+          ciphertextB64: encMem.ciphertextB64,
+          ivB64: encMem.ivB64,
+          saltB64,
+          kdfVersion: getKdfVersion(),
+        });
+      }
 
       const enc = await encryptJson(key, payload);
       const saltB64 = await getOrCreateAppSaltB64();
@@ -111,7 +135,44 @@ export default function RitualPage() {
           <CardBody>
             <div className="text-lg font-semibold text-neutral-900">Close the ritual</div>
             <p className="mt-2 text-sm text-neutral-600">{ritual.closingLine}</p>
+            {ritual.intent === "make_sense" && (
+              <Card className="bg-neutral-50">
+                <CardBody>
+                  <div className="text-sm font-semibold text-neutral-900">
+                    Save one sentence to remember? (optional)
+                  </div>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    This is for continuity only. You choose what matters.
+                  </p>
 
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      variant={saveMemory === "yes" ? "primary" : "secondary"}
+                      onClick={() => setSaveMemory("yes")}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant={saveMemory === "no" ? "primary" : "secondary"}
+                      onClick={() => setSaveMemory("no")}
+                    >
+                      No
+                    </Button>
+                  </div>
+
+                  {saveMemory === "yes" && (
+                    <div className="mt-4">
+                      <input
+                        className="w-full rounded-2xl border border-neutral-200 px-3 py-2 text-sm"
+                        placeholder="E.g. “I’m doing more than I think.”"
+                        value={memoryText}
+                        onChange={(e) => setMemoryText(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+            )}
             <div className="mt-5 flex gap-2">
               <Button variant="secondary" onClick={() => router.push("/")}>
                 Back home

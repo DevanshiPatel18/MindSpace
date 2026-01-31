@@ -1,7 +1,7 @@
 import { openDB, DBSchema } from "idb";
 import { EncryptedRecord, Settings } from "./types";
-import { makeRandomSalt } from "./crypto";
-import { b64FromBytes } from "./util";
+import { makeRandomSalt, getKdfVersion } from "./crypto";
+import { b64FromBytes, uuid } from "./util";
 
 interface JournalDB extends DBSchema {
   entries: { key: string; value: EncryptedRecord; indexes: { "by-createdAt": string } };
@@ -11,7 +11,14 @@ interface JournalDB extends DBSchema {
 }
 
 const DB_NAME = "mindspace_v1";
-const DEFAULT_SETTINGS: Settings = { aiEnabled: true, insightsEnabled: true, autoLockMinutes: 10, rememberAiKey: false };
+
+const DEFAULT_SETTINGS: Settings = {
+  aiEnabled: true,
+  insightsEnabled: true,
+  autoLockMinutes: 10,
+  rememberAiKey: false,
+  aiApiKey: undefined,
+};
 
 async function db() {
   return openDB<JournalDB>(DB_NAME, 1, {
@@ -85,4 +92,20 @@ export async function listMemoryRecords(): Promise<EncryptedRecord[]> {
   const d = await db();
   const all = await d.getAllFromIndex("memory", "by-createdAt");
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export async function deleteMemoryRecord(id: string) {
+  const d = await db();
+  await d.delete("memory", id);
+}
+
+/** Helper to make record metadata consistent */
+export function makeRecordIndex(intent: EncryptedRecord["intent"], ritualName: string) {
+  return {
+    id: uuid(),
+    createdAt: new Date().toISOString(),
+    intent,
+    ritualName,
+    kdfVersion: getKdfVersion(),
+  };
 }

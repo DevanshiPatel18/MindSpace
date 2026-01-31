@@ -1,6 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { Card, CardBody } from "@/components/Card";
 import { Button } from "@/components/Button";
+import React from "react";
+import { MemoryItem } from "@/lib/types";
+import { getSessionKey } from "@/lib/session";
+import { listMemoryRecords } from "@/lib/storage";
+import { decryptJson } from "@/lib/crypto";
+import { formatDate } from "@/lib/util";
 
 function IntentCard({
   title,
@@ -29,6 +37,27 @@ function IntentCard({
 }
 
 export default function Home() {
+  const [latestMemory, setLatestMemory] = React.useState<MemoryItem | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      const key = getSessionKey();
+      if (!key) return;
+
+      const records = await listMemoryRecords();
+      if (!records.length) return;
+
+      try {
+        const mem = await decryptJson<MemoryItem>(
+          key,
+          records[0].ciphertextB64,
+          records[0].ivB64
+        );
+        setLatestMemory(mem);
+      } catch { }
+    })();
+  }, []);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -53,6 +82,20 @@ export default function Home() {
           </div>
         </CardBody>
       </Card>
+
+      {latestMemory && (
+        <Card>
+          <CardBody>
+            <div className="text-xs text-neutral-500">Previously saved</div>
+            <div className="mt-2 text-sm text-neutral-900 font-medium">
+              “{latestMemory.text}”
+            </div>
+            <div className="mt-1 text-xs text-neutral-500">
+              {formatDate(latestMemory.createdAt)}
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       <div className="grid gap-4">
         <IntentCard
