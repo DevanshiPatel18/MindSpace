@@ -1,65 +1,31 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Card, CardBody } from "@/components/Card";
+import { Button } from "@/components/Button";
 
 export default function Home() {
   return (
-    <div className="page">
-      <main className="main">
-        <Image
-          className="logo"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="intro">
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="ctas">
-          <a
-            className="primary"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="logo"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="secondary"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="min-h-screen bg-neutral-50">
+      <div className="mx-auto max-w-3xl px-4 py-10 md:py-12">
+        <Card>
+          <CardBody>
+            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-600">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Trust-first journaling • local-first • encrypted
+            </div>
+
+            <h1 className="mt-4 text-3xl md:text-4xl font-bold tracking-tight text-neutral-900">
+              Mindspace
+            </h1>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button>Start (coming next)</Button>
+              <Link href="/unlock">
+                <Button variant="secondary">Go to Unlock</Button>
+              </Link>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    </main>
   );
 }
