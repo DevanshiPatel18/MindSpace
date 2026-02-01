@@ -25,6 +25,12 @@ export default function EntryPage() {
   const [aiBusy, setAiBusy] = React.useState(false);
   const [aiReflection, setAiReflection] = React.useState("");
 
+  async function onDelete() {
+    if (!confirm("Delete this entry?")) return;
+    await deleteEntryRecord(params.id);
+    router.push("/archive");
+  }
+
   React.useEffect(() => {
     (async () => {
       const key = getSessionKey();
@@ -35,17 +41,12 @@ export default function EntryPage() {
 
       try {
         setPayload(await decryptJson<EntryPayload>(key, record.ciphertextB64, record.ivB64));
-      } catch {
-        setErr("Could not decrypt entry.");
+      } catch (e) {
+        console.error("Decryption failed:", e);
+        setErr("DECRYPT_FAILED");
       }
     })();
   }, [params.id, router]);
-
-  async function onDelete() {
-    if (!confirm("Delete this entry?")) return;
-    await deleteEntryRecord(params.id);
-    router.push("/archive");
-  }
 
   async function onReflect() {
     if (!payload) return;
@@ -93,6 +94,26 @@ Write a gentle reflection:
     } finally {
       setAiBusy(false);
     }
+  }
+
+  if (err === "DECRYPT_FAILED") {
+    return (
+      <div className="space-y-6">
+        <Toast message={message} />
+        <PageHeader title="Encrypted Entry" subtitle="This entry is locked." />
+        <Card className="border-red-100 bg-red-50">
+          <CardBody>
+            <div className="text-red-700 font-semibold mb-2">Could not decrypt this entry.</div>
+            <div className="text-sm text-red-600 mb-4">
+              It may have been saved with a different passphrase, or the data is corrupted.
+            </div>
+            <Button variant="danger" onClick={onDelete}>
+              Delete this entry
+            </Button>
+          </CardBody>
+        </Card>
+      </div>
+    );
   }
 
   if (err) {
