@@ -62,13 +62,13 @@ export default function InsightsPage() {
       for (const r of records) {
         try {
           entries.push(await decryptJson<EntryPayload>(key, r.ciphertextB64, r.ivB64));
-        } catch {}
+        } catch { }
       }
 
       // User-approved memories
       try {
         const mem = await listMemoryItems();
-        setMemories(mem.slice(0, 5).map((m) => m.text));
+        setMemories(mem.slice(0, 5).map((m) => m.item.text));
       } catch {
         setMemories([]);
       }
@@ -169,21 +169,65 @@ End with one optional question.
     }
   }
 
-  function BucketList({ items, empty }: { items: Bucket; empty: string }) {
+  // Color palette for visual bars (trust-first: warm, calming colors)
+  const BAR_COLORS = [
+    "bg-indigo-300",
+    "bg-violet-300",
+    "bg-sky-300",
+    "bg-teal-300",
+    "bg-amber-300",
+    "bg-rose-300",
+  ];
+
+  function VisualBucket({ items, empty, showChart = false }: { items: Bucket; empty: string; showChart?: boolean }) {
+    const maxCount = items.length > 0 ? Math.max(...items.map(([, v]) => v)) : 1;
+
     return (
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-3">
         {items.length === 0 ? (
           <div className="text-sm text-neutral-600">{empty}</div>
         ) : (
-          items.map(([k, v]) => (
-            <div key={k} className="flex items-center justify-between rounded-2xl bg-neutral-50 px-3 py-2">
-              <div className="text-sm text-neutral-900">{k}</div>
-              <div className="text-xs text-neutral-500">{v}</div>
+          <>
+            {/* Visual bar chart */}
+            {showChart && (
+              <div className="flex items-end gap-1 h-16 px-2">
+                {items.map(([k, v], i) => (
+                  <div key={k} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className={`w-full rounded-t-lg transition-all ${BAR_COLORS[i % BAR_COLORS.length]}`}
+                      style={{ height: `${(v / maxCount) * 100}%`, minHeight: "4px" }}
+                      title={`${k}: ${v}`}
+                    />
+                    <div className="text-[10px] text-neutral-500 truncate w-full text-center">{k}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* List view */}
+            <div className="space-y-2">
+              {items.map(([k, v], i) => (
+                <div key={k} className="flex items-center gap-2 rounded-2xl bg-neutral-50 px-3 py-2">
+                  <div className={`w-2 h-2 rounded-full ${BAR_COLORS[i % BAR_COLORS.length]}`} />
+                  <div className="flex-1 text-sm text-neutral-900">{k}</div>
+                  <div className="text-xs text-neutral-500 font-medium">{v}</div>
+                  {/* Mini bar in row */}
+                  <div className="w-16 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${BAR_COLORS[i % BAR_COLORS.length]}`}
+                      style={{ width: `${(v / maxCount) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-          ))
+          </>
         )}
       </div>
     );
+  }
+
+  function BucketList({ items, empty }: { items: Bucket; empty: string }) {
+    return <VisualBucket items={items} empty={empty} showChart={false} />;
   }
 
   return (
@@ -204,14 +248,14 @@ End with one optional question.
         <Card>
           <CardBody>
             <div className="text-sm font-semibold text-neutral-900">Top emotions</div>
-            <BucketList items={topEmotions} empty="Add emotion tags to entries to see this." />
+            <VisualBucket items={topEmotions} empty="Add emotion tags to entries to see this." showChart />
           </CardBody>
         </Card>
 
         <Card>
           <CardBody>
             <div className="text-sm font-semibold text-neutral-900">Top contexts</div>
-            <BucketList items={topContexts} empty="Add context tags to entries to see this." />
+            <VisualBucket items={topContexts} empty="Add context tags to entries to see this." showChart />
           </CardBody>
         </Card>
 

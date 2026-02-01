@@ -68,8 +68,8 @@ Intent: ${payload.intent}
 
 Content:
 ${payload.steps
-  .map((s, i) => `Step ${i + 1} prompt: ${s.prompt}\nUser: ${s.response}`)
-  .join("\n\n")}
+          .map((s, i) => `Step ${i + 1} prompt: ${s.prompt}\nUser: ${s.response}`)
+          .join("\n\n")}
 
 Write a gentle reflection:
 - No diagnosis, no labels
@@ -156,6 +156,20 @@ Write a gentle reflection:
             <CardBody>
               <div className="text-xs text-neutral-500">{s.prompt}</div>
               <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-900">{s.response}</div>
+              {/* Display stored AI reflection from the ritual */}
+              {(s.aiReflection || s.aiQuestion) && (
+                <div className="mt-3 rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 p-3 border border-indigo-100">
+                  <div className="text-xs text-indigo-600 font-medium mb-1">AI Reflection</div>
+                  {s.aiReflection && (
+                    <div className="text-sm text-neutral-700">{s.aiReflection}</div>
+                  )}
+                  {s.aiQuestion && (
+                    <div className="mt-2 text-sm text-neutral-600 italic">
+                      <span className="font-medium not-italic">Question:</span> {s.aiQuestion}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardBody>
           </Card>
         ))}
