@@ -1,6 +1,6 @@
 import { b64FromBytes, bytesFromB64 } from "./util";
 
-const PBKDF2_ITERATIONS = 200_000;
+const PBKDF2_ITERATIONS = 600_000;
 const KDF_VERSION = 1;
 
 export function getKdfVersion() {

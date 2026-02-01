@@ -10,6 +10,8 @@ import {
   listMemoryRecords,
   getSettings,
 } from "./storage";
+import { getSessionKey } from "./session";
+import { decryptJson } from "./crypto";
 
 const EncryptedRecordSchema = z.object({
   id: z.string().min(1),
@@ -23,7 +25,7 @@ const EncryptedRecordSchema = z.object({
 });
 
 const BackupSchema = z.object({
-  version: z.string().min(1).optional().default("v1"),
+  version: z.union([z.string(), z.number()]).optional().default("v1"),
   exportedAt: z.string().min(1).optional(),
   entries: z.array(EncryptedRecordSchema).default([]),
   memory: z.array(EncryptedRecordSchema).default([]),
@@ -33,8 +35,9 @@ const BackupSchema = z.object({
       autoLockMinutes: z.number().int().min(1).max(120).optional(),
       insightsEnabled: z.boolean().optional(),
       rememberAiKey: z.boolean().optional(),
-      // 👇 DO NOT import secrets; even if present
       aiApiKey: z.any().optional(),
+      useDefaultAiKey: z.boolean().optional(),
+      encryptedAiApiKey: z.any().optional(),
     })
     .optional(),
 });
@@ -47,6 +50,7 @@ export type ImportPreview = {
   entriesCount: number;
   memoryCount: number;
   settingsIncluded: boolean;
+  isDecryptable: boolean | null;
 };
 
 export type ImportMode = "merge" | "replace";
@@ -74,13 +78,29 @@ export function parseBackupJson(raw: string): BackupPayload {
   return result.data;
 }
 
-export function makePreview(data: BackupPayload): ImportPreview {
+export async function makePreview(data: BackupPayload): Promise<ImportPreview> {
+  const key = getSessionKey();
+  let isDecryptable: boolean | null = null;
+
+  if (key) {
+    const sample = (data.entries ?? [])[0] || (data.memory ?? [])[0];
+    if (sample) {
+      try {
+        await decryptJson(key, sample.ciphertextB64, sample.ivB64);
+        isDecryptable = true;
+      } catch {
+        isDecryptable = false;
+      }
+    }
+  }
+
   return {
-    version: data.version ?? "v1",
+    version: String(data.version ?? "v1"),
     exportedAt: data.exportedAt,
     entriesCount: data.entries?.length ?? 0,
     memoryCount: data.memory?.length ?? 0,
     settingsIncluded: Boolean(data.settings),
+    isDecryptable,
   };
 }
 
@@ -142,7 +162,8 @@ export async function applyImport(data: BackupPayload, mode: ImportMode): Promis
       autoLockMinutes: data.settings.autoLockMinutes ?? current.autoLockMinutes,
       insightsEnabled: data.settings.insightsEnabled ?? current.insightsEnabled,
       rememberAiKey: data.settings.rememberAiKey ?? current.rememberAiKey,
-      // DO NOT import aiApiKey
+      useDefaultAiKey: data.settings.useDefaultAiKey ?? current.useDefaultAiKey,
+      encryptedAiApiKey: current.encryptedAiApiKey, 
       aiApiKey: current.aiApiKey,
     };
 

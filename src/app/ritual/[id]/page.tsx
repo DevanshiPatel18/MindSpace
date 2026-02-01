@@ -9,6 +9,7 @@ import { Textarea, Field, Input } from "@/components/Field";
 import { Toast, useToast } from "@/components/Toast";
 
 import { getRitualById } from "@/lib/rituals";
+import { listMemoryItems } from "@/lib/memory";
 import {
   getSettings,
   saveEntryRecord,
@@ -54,6 +55,8 @@ export default function RitualPage() {
   const [seedHandled, setSeedHandled] = React.useState(false);
   const [seedText, setSeedText] = React.useState("");
 
+  const [userMemories, setUserMemories] = React.useState<string[]>([]);
+
   // After-step AI follow-up (optional)
   const [pendingAi, setPendingAi] = React.useState<PendingAi | null>(null);
   const [followupAnswer, setFollowupAnswer] = React.useState("");
@@ -66,6 +69,13 @@ export default function RitualPage() {
     (async () => {
       const s = await getSettings();
       setSettings(s);
+
+      try {
+        const mem = await listMemoryItems();
+        setUserMemories(mem.slice(0, 5).map(m => m.item.text));
+      } catch {
+        // ignore
+      }
     })();
   }, []);
 
@@ -113,6 +123,7 @@ export default function RitualPage() {
           stepPrompt: opts.prompt,
           userText: opts.response,
           previousText: prev,
+          memories: userMemories,
         });
         aiReflection = reply.reflection;
         aiQuestion = reply.question;

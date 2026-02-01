@@ -9,7 +9,7 @@ export type EntryPayload = {
   steps: Array<{
     prompt: string;
     response: string;
-    aiReflection?: string;
+    aiReflection?: string | null;
     aiQuestion?: string | null;
   }>;
   tags?: { emotion?: string | null; context?: string | null };

@@ -6,8 +6,9 @@ import { Card, CardBody } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
 import { Toast, useToast } from "@/components/Toast";
-import { seedDemoEntries } from "@/scripts/seedEntries";
+import { seedDemoEntries, generateDynamicAiEntries } from "@/scripts/seedEntries";
 import { getSessionKey } from "@/lib/session";
+import { getSettings } from "@/lib/storage";
 
 export default function SeedPage() {
   const { message, setMessage } = useToast();
@@ -26,6 +27,34 @@ export default function SeedPage() {
     } catch (e: unknown) {
       const err = e instanceof Error ? e.message : "Seeding failed.";
       setMessage(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAiSeed() {
+    setBusy(true);
+    try {
+      const settings = await getSettings();
+      const apiKey = settings.rememberAiKey
+        ? (settings.aiApiKey ?? "")
+        : (sessionStorage.getItem("ai_api_key") ?? "");
+
+      if (!apiKey && !settings.useDefaultAiKey) {
+        return setMessage("Add an AI API key in Settings first.");
+      }
+
+      const total = await generateDynamicAiEntries(apiKey);
+      setMessage(`AI generated and seeded ${total} custom entries.`);
+    } catch (e: any) {
+      console.error("AI Seed Error:", e);
+      if (e.name === "ZodError") {
+        console.error("Zod Issues:", e.issues);
+        setMessage(`Validation Error: Check console for details.`);
+      } else {
+        const err = e instanceof Error ? e.message : String(e);
+        setMessage(`Error: ${err}`);
+      }
     } finally {
       setBusy(false);
     }
@@ -56,9 +85,17 @@ export default function SeedPage() {
               <div className="text-sm text-neutral-700">
                 You&apos;re unlocked in this tab. Ready to seed.
               </div>
-              <Button onClick={onSeed} disabled={busy}>
-                {busy ? "Seeding..." : "Seed demo entries"}
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={onSeed} disabled={busy} variant="secondary">
+                  {busy ? "Processing..." : "Seed static demo data"}
+                </Button>
+                <Button onClick={onAiSeed} disabled={busy}>
+                  {busy ? "AI Thinking..." : "Generate unique history with AI"}
+                </Button>
+              </div>
+              <div className="text-xs text-neutral-500 italic">
+                The AI option will create a unique 2-week history based on a random persona.
+              </div>
             </>
           )}
         </CardBody>

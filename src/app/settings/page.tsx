@@ -90,51 +90,59 @@ export default function SettingsPage() {
               <input type="checkbox" checked={aiEnabled} onChange={(e) => setAiEnabled(e.target.checked)} />
             </div>
 
-            <div className="mt-4 space-y-3">
-              <Field
-                label="AI API Key"
-                hint="Stored in-session by default. If you enable 'remember', it will be saved in local settings."
-              >
-                <Input
-                  value={aiKey}
-                  onChange={(e) => setAiKey(e.target.value)}
-                  placeholder="Paste key"
-                  type="password"
-                />
-                <div className="text-xs text-neutral-500">
-                  If AI is enabled, only the text you write in the current step is sent to the AI API to generate a short reflection.
-                  Your archive is not uploaded.
+            {aiEnabled && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
+                  <div>
+                    <div className="text-sm font-semibold text-neutral-900">Use default key</div>
+                    <div className="text-xs text-neutral-500 mt-0.5">Use the key provided by the server (if available).</div>
+                  </div>
+                  <input type="checkbox" checked={useDefaultAiKey} onChange={(e) => setUseDefaultAiKey(e.target.checked)} />
                 </div>
-              </Field>
 
-              <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
-                <div>
-                  <div className="text-sm font-semibold text-neutral-900">Use default key</div>
-                  <div className="text-xs text-neutral-500 mt-0.5">Use the key provided by the server (if available).</div>
-                </div>
-                <input type="checkbox" checked={useDefaultAiKey} onChange={(e) => setUseDefaultAiKey(e.target.checked)} />
-              </div>
+                {!useDefaultAiKey && (
+                  <>
+                    <Field
+                      label="OpenAI API Key"
+                      hint="Stored in-session by default. If you enable 'remember', it will be saved in local settings."
+                    >
+                      <Input
+                        value={aiKey}
+                        onChange={(e) => setAiKey(e.target.value)}
+                        placeholder="Paste key"
+                        type="password"
+                      />
+                      <div className="text-xs text-neutral-500">
+                        If AI is enabled, only the text you write in the current step is sent to the AI API to generate a short reflection.
+                        Your archive is not uploaded.
+                      </div>
+                    </Field>
 
-              <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
-                <div>
-                  <div className="text-sm font-semibold text-neutral-900">Remember key on this device</div>
-                  <div className="text-xs text-neutral-500 mt-0.5">Off by default (safer).</div>
-                </div>
-                <input type="checkbox" checked={rememberAiKey} onChange={(e) => setRememberAiKey(e.target.checked)} />
+                    <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
+                      <div>
+                        <div className="text-sm font-semibold text-neutral-900">Remember key on this device</div>
+                        <div className="text-xs text-neutral-500 mt-0.5">Off by default (safer).</div>
+                      </div>
+                      <input type="checkbox" checked={rememberAiKey} onChange={(e) => setRememberAiKey(e.target.checked)} />
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
-          <div>
-            <div className="text-sm font-semibold text-neutral-900">Insights</div>
-            <div className="mt-4 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
-              <div>
-                <div className="text-sm font-semibold text-neutral-900">Enable Insights</div>
-                <div className="text-xs text-neutral-500 mt-0.5">On-device aggregation from optional tags.</div>
+          {aiEnabled && (
+            <div>
+              <div className="text-sm font-semibold text-neutral-900">Insights</div>
+              <div className="mt-4 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
+                <div>
+                  <div className="text-sm font-semibold text-neutral-900">Enable Insights</div>
+                  <div className="text-xs text-neutral-500 mt-0.5">On-device aggregation from optional tags.</div>
+                </div>
+                <input type="checkbox" checked={insightsEnabled} onChange={(e) => setInsightsEnabled(e.target.checked)} />
               </div>
-              <input type="checkbox" checked={insightsEnabled} onChange={(e) => setInsightsEnabled(e.target.checked)} />
             </div>
-          </div>
+          )}
 
           <div>
             <div className="text-sm font-semibold text-neutral-900">Privacy</div>

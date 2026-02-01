@@ -19,6 +19,7 @@ import { encryptJson, getKdfVersion } from "@/lib/crypto";
 import { getSessionKey } from "@/lib/session";
 import { uuid } from "@/lib/util";
 import type { EntryPayload, MemoryItem } from "@/lib/types";
+import { generateAiHistory } from "@/lib/ai";
 
 /* ------------------ DEMO NARRATIVE ------------------ */
 
@@ -349,6 +350,93 @@ const CURATED_ENTRIES: Array<{
       },
     ],
   },
+  // Week 4 - Diverse life themes (Health, Finance, Projects)
+  {
+    daysAgo: 16,
+    intent: "unload",
+    emotion: "anxious",
+    context: "money",
+    steps: [
+      {
+        prompt: "What is still sitting with you from today?",
+        response: "Checked my savings account after paying rent. I feel like I am barely breaking even this month. I want to travel this summer but at this rate, it might not happen.",
+        aiReflection: "Financial pressure can make the future feel restricted. It is hard to dream about travel when the current budget feels tight.",
+        aiQuestion: "What is one small, non-money joy you can prioritize this week?",
+      },
+      {
+        prompt: "What can wait until tomorrow?",
+        response: "Solving the entire budget. I cannot fix it tonight by worrying. I will review my spending on Saturday.",
+      },
+    ],
+  },
+  {
+    daysAgo: 17,
+    intent: "make_sense",
+    emotion: "hopeful",
+    context: "health",
+    steps: [
+      {
+        prompt: "What happened? (just the facts)",
+        response: "Finally went to that doctor appointment I have been putting off. Turns out it was nothing serious, just stress-related tension.",
+        aiReflection: "Addressing a fear directly often yields relief. You took a proactive step for your wellbeing.",
+        aiQuestion: "How does your body feel now that the 'not knowing' is over?",
+      },
+      {
+        prompt: "What did you feel?",
+        response: "Such a huge weight lifted. I did not realize how much mental space that worry was taking up.",
+      },
+      { prompt: "What story did you tell yourself about it?", response: "That it was something terrible. That I was failing to take care of myself." },
+      { prompt: "What do you need right now?", response: "A deep sleep. And to remember that most of the things I worry about never happen." },
+    ],
+  },
+  {
+    daysAgo: 18,
+    intent: "help_write",
+    emotion: "happy",
+    context: "self",
+    steps: [
+      {
+        prompt: "Start with one sentence about your day",
+        response: "I spent three hours working on my painting today. I forgot what lime it was. I was completely lost in the color.",
+        aiReflection: "Entering a state of 'flow' where time disappears is deeply nourishing. It sounds like you reconnected with a creative spark.",
+        aiQuestion: null,
+      },
+      {
+        prompt: "What do you wish you could say?",
+        response: "I want to be a person who creates more than they consume. This felt like a start.",
+      },
+    ],
+  },
+  {
+    daysAgo: 19,
+    intent: "unload",
+    emotion: "grateful",
+    context: "relationships",
+    steps: [
+      {
+        prompt: "What is still sitting with you from today?",
+        response: "A stranger helped me carry my groceries when the bag ripped. Such a small thing but it changed my whole mood. People can be so kind.",
+        aiReflection: "Small acts of unexpected kindness can restore our faith in the community. It sounds like a lovely moment of connection.",
+        aiQuestion: null,
+      },
+      {
+        prompt: "What can wait until tomorrow?",
+        response: "The frustration I had with the traffic earlier. That kindness was bigger than the traffic.",
+      },
+    ],
+  },
+  {
+    daysAgo: 20,
+    intent: "make_sense",
+    emotion: "stressed",
+    context: "future",
+    steps: [
+      { prompt: "What happened? (just the facts)", response: "Read an article about the job market and inflation. Everything feels so precarious right now." },
+      { prompt: "What did you feel?", response: "Old-fashioned dread. Like I'm building on sand." },
+      { prompt: "What story did you tell yourself about it?", response: "That no matter how hard I work, the 'system' is designed to make it hard." },
+      { prompt: "What do you need right now?", response: "To put my phone away. To focus on the walls of my room and the air in my lungs. Grounding." },
+    ],
+  },
 ];
 
 // Demo memories to seed
@@ -445,5 +533,57 @@ export async function seedDemoEntries(): Promise<number> {
   }
 
   console.log(`Seeded ${total} demo journal entries + ${DEMO_MEMORIES.length} memories.`);
+  return total;
+}
+
+export async function generateDynamicAiEntries(apiKey: string): Promise<number> {
+  const key = getSessionKey();
+  if (!key) throw new Error("Unlock required.");
+
+  const saltB64 = await getOrCreateAppSaltB64();
+  
+  // Call AI to get entries
+  const { entries } = await generateAiHistory({ apiKey });
+  let total = 0;
+
+  for (const entry of entries) {
+    const entryId = uuid();
+    const createdAt = daysAgo(entry.daysAgo);
+
+    const ritualMeta = {
+      unload: { ritualId: "end-the-day", ritualName: "End the Day" },
+      make_sense: { ritualId: "make-sense", ritualName: "Make Sense of This" },
+      help_write: { ritualId: "one-sentence-start", ritualName: "One Sentence Start" },
+    }[entry.intent as "unload" | "make_sense" | "help_write"];
+
+    const payload: EntryPayload = {
+      id: entryId,
+      ritualId: ritualMeta.ritualId,
+      ritualName: ritualMeta.ritualName,
+      intent: entry.intent,
+      createdAt,
+      steps: entry.steps,
+      tags: {
+        emotion: entry.emotion,
+        context: entry.context,
+      },
+    };
+
+    const { ciphertextB64, ivB64 } = await encryptJson(key, payload);
+
+    await saveEntryRecord({
+      ...newEncryptedRecordIndex(entry.intent, payload.ritualName),
+      id: entryId,
+      createdAt,
+      ciphertextB64,
+      ivB64,
+      saltB64,
+      kdfVersion: getKdfVersion(),
+    });
+
+    total++;
+  }
+
+  console.log(`AI generation successful: seeded ${total} entries.`);
   return total;
 }
