@@ -5,14 +5,24 @@ import Link from "next/link";
 import { Card, CardBody } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { PageHeader } from "@/components/PageHeader";
-import { listMemoryRecords, listEntryRecords } from "@/lib/storage";
+import { Toast, useToast } from "@/components/Toast";
+import { listEntryRecords, listMemoryRecords, getSettings } from "@/lib/storage";
 import { getSessionKey } from "@/lib/session";
 import { decryptJson } from "@/lib/crypto";
-import type { MemoryItem } from "@/lib/types";
+import type { EntryPayload, MemoryItem } from "@/lib/types";
 import { formatDate } from "@/lib/util";
 import { computeStreak, lastEntryDate } from "@/lib/stats";
+import { generateTrustFirstNudge, type AiNudge } from "@/lib/ai";
 
-function IntentCard({ title, desc, href }: { title: string; desc: string; href: string }) {
+function IntentCard({
+  title,
+  desc,
+  href,
+}: {
+  title: string;
+  desc: string;
+  href: string;
+}) {
   return (
     <Card className="hover:shadow-md transition">
       <CardBody>
@@ -31,78 +41,121 @@ function IntentCard({ title, desc, href }: { title: string; desc: string; href: 
 }
 
 export default function HomePage() {
-  const [latestMemory, setLatestMemory] = React.useState<MemoryItem | null>(null);
+  const { message, setMessage } = useToast();
 
+  const [latestMemory, setLatestMemory] = React.useState<MemoryItem | null>(null);
   const [streak, setStreak] = React.useState(0);
-  const [lastEntry, setLastEntry] = React.useState<string | null>(null);
+  const [lastAt, setLastAt] = React.useState<string | null>(null);
+  const [lastTags, setLastTags] = React.useState<{ emotion?: string | null; context?: string | null } | null>(null);
+
+  const [nudge, setNudge] = React.useState<AiNudge | null>(null);
+  const [nudgeBusy, setNudgeBusy] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
       const key = getSessionKey();
       if (!key) return;
 
-      // Momentum: compute from entry record metadata (no decrypt needed)
-      const entryRecords = await listEntryRecords();
-      setStreak(computeStreak(entryRecords));
-      setLastEntry(lastEntryDate(entryRecords));
+      const records = await listEntryRecords();
+      setStreak(computeStreak(records));
+      setLastAt(lastEntryDate(records));
 
-      // Continuity memory (decrypt memory only)
+      // Decrypt only the latest entry to get user-chosen tags (not the whole archive).
+      if (records[0]) {
+        try {
+          const latest = await decryptJson<EntryPayload>(key, records[0].ciphertextB64, records[0].ivB64);
+          setLastTags({ emotion: latest.tags?.emotion ?? null, context: latest.tags?.context ?? null });
+        } catch {}
+      }
+
+      // Latest memory sentence (user-approved)
       const memRecords = await listMemoryRecords();
-      if (memRecords.length === 0) return;
-      const r = memRecords[0];
-      try {
-        const payload = await decryptJson<MemoryItem>(key, r.ciphertextB64, r.ivB64);
-        setLatestMemory(payload);
-      } catch {}
+      if (memRecords[0]) {
+        try {
+          const m = await decryptJson<MemoryItem>(key, memRecords[0].ciphertextB64, memRecords[0].ivB64);
+          setLatestMemory(m);
+        } catch {}
+      }
     })();
   }, []);
 
+  async function onGenerateNudge() {
+    setNudge(null);
+    setNudgeBusy(true);
+    try {
+      const settings = await getSettings();
+      if (!settings.aiEnabled) {
+        setMessage("AI is off. Enable it in Settings.");
+        return;
+      }
+
+      const apiKey = settings.rememberAiKey
+        ? settings.aiApiKey ?? ""
+        : sessionStorage.getItem("ai_api_key") ?? "";
+
+      if (!apiKey) {
+        setMessage("Add an AI API key in Settings.");
+        return;
+      }
+
+      const out = await generateTrustFirstNudge({
+        apiKey,
+        signals: {
+          streak,
+          lastEntryAt: lastAt,
+          lastTags: lastTags ?? undefined,
+          memories: latestMemory ? [latestMemory.text] : [],
+        },
+      });
+
+      setNudge(out);
+    } catch {
+      setMessage("Could not generate a prompt.");
+    } finally {
+      setNudgeBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <PageHeader title="What would help right now?" subtitle="Private by default. You decide how deep to go." />
+      <Toast message={message} />
 
-      {/* Momentum card */}
-      <Card>
+      <PageHeader
+        title="What would help right now?"
+        subtitle="Private by default. You decide how deep to go."
+      />
+
+      <Card className="shadow-[var(--shadow)]">
         <CardBody>
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-neutral-900">Momentum</div>
-              <div className="mt-2 text-sm text-neutral-700">
-                {streak === 0 ? (
-                  <>No streak to maintain. Just a place to land.</>
-                ) : streak === 1 ? (
-                  <>You showed up <b>1 day</b> in a row.</>
+              <div className="mt-1 text-sm text-neutral-600">
+                {streak > 0 ? (
+                  <>
+                    You’re on a <span className="font-semibold text-neutral-900">{streak}-day streak</span>.
+                  </>
                 ) : (
-                  <>You showed up <b>{streak} days</b> in a row.</>
+                  <>No streak pressure. One entry counts.</>
                 )}
               </div>
-              <div className="mt-1 text-xs text-neutral-500">
-                {lastEntry ? <>Last entry: {formatDate(lastEntry)}</> : <>No entries yet.</>}
-              </div>
-              <div className="mt-3 text-xs text-neutral-500">
-                No guilt. If you miss a day, the app doesn’t punish you—just offers a small restart.
-              </div>
+              {lastAt ? (
+                <div className="mt-1 text-xs text-neutral-500">Last entry: {formatDate(lastAt)}</div>
+              ) : null}
             </div>
-
-            <div className="flex flex-col gap-2">
-              <Link href="/backup">
-                <Button variant="secondary">Backup</Button>
-              </Link>
-              <Link href="/archive">
-                <Button variant="ghost">Archive</Button>
-              </Link>
-            </div>
+            <Link href="/archive">
+              <Button variant="secondary">Archive</Button>
+            </Link>
           </div>
         </CardBody>
       </Card>
 
       {latestMemory ? (
-        <Card>
+        <Card className="shadow-[var(--shadow)]">
           <CardBody>
             <div className="text-xs text-neutral-500">Continuity (optional)</div>
             <div className="mt-2 text-sm text-neutral-800">
-              You previously saved:{" "}
-              <span className="font-semibold text-neutral-900">“{latestMemory.text}”</span>
+              You previously saved: <span className="font-semibold text-neutral-900">“{latestMemory.text}”</span>
             </div>
             <div className="mt-1 text-xs text-neutral-500">Saved {formatDate(latestMemory.createdAt)}</div>
             <div className="mt-4 flex gap-2">
@@ -116,6 +169,43 @@ export default function HomePage() {
           </CardBody>
         </Card>
       ) : null}
+
+      {/* Module 14 */}
+      <Card className="shadow-[var(--shadow)]">
+        <CardBody>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-neutral-900">Gentle nudge (optional)</div>
+              <div className="mt-1 text-sm text-neutral-600">
+                Generates one starter question using only lightweight signals (streak, last tags, and your approved memory sentence).
+              </div>
+            </div>
+            <Button onClick={onGenerateNudge} disabled={nudgeBusy} variant="secondary">
+              {nudgeBusy ? "Generating…" : "Generate"}
+            </Button>
+          </div>
+
+          {nudge ? (
+            <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+              <div className="text-sm text-neutral-800">{nudge.reflection}</div>
+              <div className="mt-3 text-sm text-neutral-900">
+                <span className="font-semibold">Try:</span> {nudge.question}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href={`/ritual/${nudge.ritualId}?seed=${encodeURIComponent(nudge.question)}`}>
+                  <Button>Open suggested ritual</Button>
+                </Link>
+                <Link href="/settings">
+                  <Button variant="ghost">Privacy settings</Button>
+                </Link>
+              </div>
+              <div className="mt-3 text-xs text-neutral-500">
+                Tip: the starter question becomes an *optional* first step. You can skip it.
+              </div>
+            </div>
+          ) : null}
+        </CardBody>
+      </Card>
 
       <div className="grid gap-4">
         <IntentCard
@@ -136,14 +226,14 @@ export default function HomePage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Link href="/archive">
-          <Button variant="ghost">Go to Archive</Button>
-        </Link>
         <Link href="/insights">
           <Button variant="ghost">Explore Insights</Button>
         </Link>
-        <Link href="/settings">
-          <Button variant="ghost">Settings</Button>
+        <Link href="/memory">
+          <Button variant="ghost">Memories</Button>
+        </Link>
+        <Link href="/scripts/seed">
+          <Button variant="secondary">Seed demo entries</Button>
         </Link>
       </div>
     </div>

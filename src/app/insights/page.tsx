@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { Card, CardBody } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
@@ -11,191 +10,178 @@ import { listEntryRecords, getSettings } from "@/lib/storage";
 import { getSessionKey } from "@/lib/session";
 import { decryptJson } from "@/lib/crypto";
 import type { EntryPayload } from "@/lib/types";
-import { generateTrustFirstReply } from "@/lib/ai";
+import { listMemoryItems } from "@/lib/memory";
+import { generateTrustFirstInsightsReflection } from "@/lib/ai";
 
-type KV = { key: string; count: number };
+type Bucket = Array<[string, number]>;
 
-function toTopList(map: Map<string, number>, max = 6): KV[] {
-  return [...map.entries()]
-    .map(([key, count]) => ({ key, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, max);
+function topN(map: Map<string, number>, n: number): Bucket {
+  return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+}
+
+function inRange(iso: string, startMs: number, endMs: number) {
+  const t = Date.parse(iso);
+  return t >= startMs && t < endMs;
 }
 
 export default function InsightsPage() {
   const { message, setMessage } = useToast();
 
-  const [loading, setLoading] = React.useState(true);
-  const [insightsEnabled, setInsightsEnabled] = React.useState(true);
+  const [topEmotions, setTopEmotions] = React.useState<Bucket>([]);
+  const [topContexts, setTopContexts] = React.useState<Bucket>([]);
+  const [pairings, setPairings] = React.useState<Bucket>([]);
 
-  const [totalEntries, setTotalEntries] = React.useState(0);
-  const [taggedEntries, setTaggedEntries] = React.useState(0);
+  // Time windows: last 7 days vs previous 7 days
+  const [weekEmotions, setWeekEmotions] = React.useState<{ thisWeek: Bucket; lastWeek: Bucket }>({
+    thisWeek: [],
+    lastWeek: [],
+  });
+  const [weekContexts, setWeekContexts] = React.useState<{ thisWeek: Bucket; lastWeek: Bucket }>({
+    thisWeek: [],
+    lastWeek: [],
+  });
 
-  const [topEmotions, setTopEmotions] = React.useState<KV[]>([]);
-  const [topContexts, setTopContexts] = React.useState<KV[]>([]);
-  const [topPairs, setTopPairs] = React.useState<KV[]>([]);
-
+  const [memories, setMemories] = React.useState<string[]>([]);
   const [reflection, setReflection] = React.useState<string>("");
-  const [reflectionBusy, setReflectionBusy] = React.useState(false);
-
-  const locked = !getSessionKey();
+  const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
-      try {
-        const key = getSessionKey();
-        if (!key) {
-          setLoading(false);
-          return;
-        }
-
-        const settings = await getSettings();
-        setInsightsEnabled(settings.insightsEnabled);
-
-        if (!settings.insightsEnabled) {
-          setMessage("Insights are off. Enable them in Settings.");
-          setLoading(false);
-          return;
-        }
-
-        const records = await listEntryRecords();
-        setTotalEntries(records.length);
-
-        const emo = new Map<string, number>();
-        const ctx = new Map<string, number>();
-        const pairs = new Map<string, number>();
-
-        let tagged = 0;
-
-        for (const r of records) {
-          try {
-            const entry = await decryptJson<EntryPayload>(key, r.ciphertextB64, r.ivB64);
-
-            const e = entry.tags?.emotion ?? null;
-            const c = entry.tags?.context ?? null;
-
-            if (e || c) tagged++;
-
-            if (e) emo.set(e, (emo.get(e) ?? 0) + 1);
-            if (c) ctx.set(c, (ctx.get(c) ?? 0) + 1);
-
-            // Module 9: co-occurrence foundation (context + emotion)
-            if (e && c) {
-              const pairKey = `${c} + ${e}`;
-              pairs.set(pairKey, (pairs.get(pairKey) ?? 0) + 1);
-            }
-          } catch {
-            // ignore decryption failures for individual entries
-          }
-        }
-
-        setTaggedEntries(tagged);
-        setTopEmotions(toTopList(emo, 6));
-        setTopContexts(toTopList(ctx, 6));
-        setTopPairs(toTopList(pairs, 8));
-      } finally {
-        setLoading(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function onGenerateReflection() {
-    try {
-      setReflectionBusy(true);
+      const key = getSessionKey();
+      if (!key) return;
 
       const settings = await getSettings();
-      if (!settings.aiEnabled) {
-        setMessage("AI is off. Enable it in Settings.");
+      if (!settings.insightsEnabled) {
+        setMessage("Insights are off. Enable them in Settings.");
         return;
       }
+
+      const records = await listEntryRecords();
+      const entries: EntryPayload[] = [];
+
+      for (const r of records) {
+        try {
+          entries.push(await decryptJson<EntryPayload>(key, r.ciphertextB64, r.ivB64));
+        } catch {}
+      }
+
+      // User-approved memories
+      try {
+        const mem = await listMemoryItems();
+        setMemories(mem.slice(0, 5).map((m) => m.text));
+      } catch {
+        setMemories([]);
+      }
+
+      // Global aggregates
+      const emo = new Map<string, number>();
+      const ctx = new Map<string, number>();
+      const pair = new Map<string, number>();
+
+      for (const e of entries) {
+        const eEmo = e.tags?.emotion ?? null;
+        const eCtx = e.tags?.context ?? null;
+
+        if (eEmo) emo.set(eEmo, (emo.get(eEmo) ?? 0) + 1);
+        if (eCtx) ctx.set(eCtx, (ctx.get(eCtx) ?? 0) + 1);
+        if (eEmo && eCtx) {
+          const k = `${eEmo} • ${eCtx}`;
+          pair.set(k, (pair.get(k) ?? 0) + 1);
+        }
+      }
+
+      setTopEmotions(topN(emo, 6));
+      setTopContexts(topN(ctx, 6));
+      setPairings(topN(pair, 6));
+
+      // Weekly windows
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const thisStart = now - 7 * day;
+      const lastStart = now - 14 * day;
+
+      const emoThis = new Map<string, number>();
+      const emoLast = new Map<string, number>();
+      const ctxThis = new Map<string, number>();
+      const ctxLast = new Map<string, number>();
+
+      for (const e of entries) {
+        const createdAt = e.createdAt ?? "";
+        const eEmo = e.tags?.emotion ?? null;
+        const eCtx = e.tags?.context ?? null;
+
+        if (inRange(createdAt, thisStart, now)) {
+          if (eEmo) emoThis.set(eEmo, (emoThis.get(eEmo) ?? 0) + 1);
+          if (eCtx) ctxThis.set(eCtx, (ctxThis.get(eCtx) ?? 0) + 1);
+        } else if (inRange(createdAt, lastStart, thisStart)) {
+          if (eEmo) emoLast.set(eEmo, (emoLast.get(eEmo) ?? 0) + 1);
+          if (eCtx) ctxLast.set(eCtx, (ctxLast.get(eCtx) ?? 0) + 1);
+        }
+      }
+
+      setWeekEmotions({ thisWeek: topN(emoThis, 6), lastWeek: topN(emoLast, 6) });
+      setWeekContexts({ thisWeek: topN(ctxThis, 6), lastWeek: topN(ctxLast, 6) });
+    })();
+  }, [setMessage]);
+
+  async function onGenerateReflection() {
+    setBusy(true);
+    try {
+      const settings = await getSettings();
+      if (!settings.aiEnabled) return setMessage("AI is off. Enable it in Settings.");
 
       const apiKey = settings.rememberAiKey
         ? (settings.aiApiKey ?? "")
         : (sessionStorage.getItem("ai_api_key") ?? "");
+      if (!apiKey) return setMessage("Add an AI API key in Settings.");
 
-      if (!apiKey) {
-        setMessage("Add an AI API key in Settings.");
-        return;
-      }
+      const aggregatesText = `
+On-device aggregates (user-chosen labels; not interpretations):
 
-      // Trust-first: aggregates only (no raw entry text)
-      const summaryInput = `
-AGGREGATED LABELS CHOSEN BY USER (DESCRIPTIVE ONLY):
-Total entries: ${totalEntries}
-Tagged entries: ${taggedEntries}
+Top emotions (all time): ${topEmotions.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}
+Top contexts (all time): ${topContexts.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}
+Top emotion•context pairings: ${pairings.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}
 
-Top emotions: ${topEmotions.map((x) => `${x.key} (${x.count})`).join(", ") || "none"}
-Top contexts: ${topContexts.map((x) => `${x.key} (${x.count})`).join(", ") || "none"}
-Top pairings (context + emotion): ${topPairs.map((x) => `${x.key} (${x.count})`).join(", ") || "none"}
+Last 7 days emotions: ${weekEmotions.thisWeek.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}
+Previous 7 days emotions: ${weekEmotions.lastWeek.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}
 
-Write a gentle reflection summary:
-- No diagnosis, no labels, no “you are…”
-- No claims about hidden causes or long-term conclusions
-- Use tentative language (“it looks like”, “maybe”, “often”)
-- 2–5 sentences max
-- End with at most ONE optional question (or null).
+Last 7 days contexts: ${weekContexts.thisWeek.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}
+Previous 7 days contexts: ${weekContexts.lastWeek.map(([k, v]) => `${k} (${v})`).join(", ") || "none"}
+
+User-approved memories (optional):
+${memories.map((m) => `• ${m}`).join("\n") || "none"}
+
+Write a gentle reflection based ONLY on these aggregates and memories.
+No diagnosis, no moralizing, no certainty claims.
+End with one optional question.
 `.trim();
 
-      const reply = await generateTrustFirstReply({
+      const reply = await generateTrustFirstInsightsReflection({
         apiKey,
-        ritualName: "Insights Reflection",
-        stepPrompt: "Generate a gentle reflection summary from aggregates.",
-        userText: summaryInput,
+        aggregatesText,
       });
 
       setReflection(`${reply.reflection}${reply.question ? `\n\nQuestion: ${reply.question}` : ""}`);
     } catch {
       setMessage("Could not generate reflection.");
     } finally {
-      setReflectionBusy(false);
+      setBusy(false);
     }
   }
 
-  if (locked) {
+  function BucketList({ items, empty }: { items: Bucket; empty: string }) {
     return (
-      <div className="space-y-6">
-        <Toast message={message} />
-        <PageHeader
-          title="Insights"
-          subtitle="Unlock to compute on-device insights from your encrypted entries."
-          right={
-            <Link href="/unlock">
-              <Button>Unlock</Button>
-            </Link>
-          }
-        />
-        <Card>
-          <CardBody>
-            <div className="text-sm text-neutral-700">
-              Insights are computed locally by decrypting entries on this device. Nothing is uploaded.
+      <div className="mt-3 space-y-2">
+        {items.length === 0 ? (
+          <div className="text-sm text-neutral-600">{empty}</div>
+        ) : (
+          items.map(([k, v]) => (
+            <div key={k} className="flex items-center justify-between rounded-2xl bg-neutral-50 px-3 py-2">
+              <div className="text-sm text-neutral-900">{k}</div>
+              <div className="text-xs text-neutral-500">{v}</div>
             </div>
-          </CardBody>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!insightsEnabled) {
-    return (
-      <div className="space-y-6">
-        <Toast message={message} />
-        <PageHeader
-          title="Insights"
-          subtitle="Insights are currently disabled."
-          right={
-            <Link href="/settings">
-              <Button>Open settings</Button>
-            </Link>
-          }
-        />
-        <Card>
-          <CardBody>
-            <div className="text-sm text-neutral-700">
-              Enable Insights in Settings to view trends from tags you choose (emotion/context).
-            </div>
-          </CardBody>
-        </Card>
+          ))
+        )}
       </div>
     );
   }
@@ -206,10 +192,10 @@ Write a gentle reflection summary:
 
       <PageHeader
         title="Insights"
-        subtitle="On-device trends from tags you chose. Descriptive counts—no scoring."
+        subtitle="On-device trends from tags you chose. No scores, no judgment."
         right={
-          <Button onClick={onGenerateReflection} disabled={reflectionBusy || loading}>
-            {reflectionBusy ? "Generating…" : "Generate reflection"}
+          <Button onClick={onGenerateReflection} disabled={busy}>
+            {busy ? "Generating…" : "Generate reflection"}
           </Button>
         }
       />
@@ -217,88 +203,73 @@ Write a gentle reflection summary:
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardBody>
-            <div className="text-xs text-neutral-500">Total entries</div>
-            <div className="mt-1 text-2xl font-bold text-neutral-900">{loading ? "…" : totalEntries}</div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody>
-            <div className="text-xs text-neutral-500">Tagged entries</div>
-            <div className="mt-1 text-2xl font-bold text-neutral-900">{loading ? "…" : taggedEntries}</div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody>
-            <div className="text-xs text-neutral-500">Privacy</div>
-            <div className="mt-2 text-sm text-neutral-800">Decrypts locally • No upload</div>
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardBody>
             <div className="text-sm font-semibold text-neutral-900">Top emotions</div>
-            <div className="mt-3 space-y-2">
-              {loading ? (
-                <div className="text-sm text-neutral-600">Loading…</div>
-              ) : topEmotions.length === 0 ? (
-                <div className="text-sm text-neutral-600">Add emotion tags to entries to see this.</div>
-              ) : (
-                topEmotions.map((x) => (
-                  <div key={x.key} className="flex items-center justify-between rounded-2xl bg-neutral-50 px-3 py-2">
-                    <div className="text-sm text-neutral-900">{x.key}</div>
-                    <div className="text-xs text-neutral-500">{x.count}</div>
-                  </div>
-                ))
-              )}
-            </div>
+            <BucketList items={topEmotions} empty="Add emotion tags to entries to see this." />
           </CardBody>
         </Card>
 
         <Card>
           <CardBody>
             <div className="text-sm font-semibold text-neutral-900">Top contexts</div>
-            <div className="mt-3 space-y-2">
-              {loading ? (
-                <div className="text-sm text-neutral-600">Loading…</div>
-              ) : topContexts.length === 0 ? (
-                <div className="text-sm text-neutral-600">Add context tags to entries to see this.</div>
-              ) : (
-                topContexts.map((x) => (
-                  <div key={x.key} className="flex items-center justify-between rounded-2xl bg-neutral-50 px-3 py-2">
-                    <div className="text-sm text-neutral-900">{x.key}</div>
-                    <div className="text-xs text-neutral-500">{x.count}</div>
-                  </div>
-                ))
-              )}
+            <BucketList items={topContexts} empty="Add context tags to entries to see this." />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody>
+            <div className="text-sm font-semibold text-neutral-900">Common pairings</div>
+            <BucketList items={pairings} empty="Tag an emotion and context together to see this." />
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="shadow-[var(--shadow)]">
+          <CardBody>
+            <div className="text-sm font-semibold text-neutral-900">This week vs last week (emotions)</div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div>
+                <div className="text-xs font-semibold text-neutral-500">Last 7 days</div>
+                <BucketList items={weekEmotions.thisWeek} empty="No emotion tags yet this week." />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-neutral-500">Previous 7 days</div>
+                <BucketList items={weekEmotions.lastWeek} empty="No emotion tags in the previous week." />
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card className="shadow-[var(--shadow)]">
+          <CardBody>
+            <div className="text-sm font-semibold text-neutral-900">This week vs last week (contexts)</div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div>
+                <div className="text-xs font-semibold text-neutral-500">Last 7 days</div>
+                <BucketList items={weekContexts.thisWeek} empty="No context tags yet this week." />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-neutral-500">Previous 7 days</div>
+                <BucketList items={weekContexts.lastWeek} empty="No context tags in the previous week." />
+              </div>
             </div>
           </CardBody>
         </Card>
       </div>
 
-      {/* Module 9: Pairings */}
       <Card>
         <CardBody>
-          <div className="text-sm font-semibold text-neutral-900">Common pairings</div>
+          <div className="text-sm font-semibold text-neutral-900">Memories used (optional)</div>
           <div className="mt-1 text-xs text-neutral-500">
-            Context + emotion combinations you tagged (e.g., “work + stressed”). Descriptive only.
+            These are single sentences you explicitly chose to save. They help continuity without rereading your archive.
           </div>
-
-          <div className="mt-4 space-y-2">
-            {loading ? (
-              <div className="text-sm text-neutral-600">Loading…</div>
-            ) : topPairs.length === 0 ? (
-              <div className="text-sm text-neutral-600">
-                Add both an emotion and a context to an entry to see pairings.
-              </div>
+          <div className="mt-3 space-y-2">
+            {memories.length === 0 ? (
+              <div className="text-sm text-neutral-600">No saved memories yet.</div>
             ) : (
-              topPairs.map((x) => (
-                <div key={x.key} className="flex items-center justify-between rounded-2xl bg-neutral-50 px-3 py-2">
-                  <div className="text-sm text-neutral-900">{x.key}</div>
-                  <div className="text-xs text-neutral-500">{x.count}</div>
+              memories.map((m, i) => (
+                <div key={i} className="rounded-2xl bg-neutral-50 px-3 py-2 text-sm text-neutral-900">
+                  {m}
                 </div>
               ))
             )}
@@ -312,21 +283,11 @@ Write a gentle reflection summary:
             <div className="text-sm font-semibold text-neutral-900">Reflection</div>
             <div className="mt-3 whitespace-pre-wrap text-sm text-neutral-800">{reflection}</div>
             <div className="mt-3 text-xs text-neutral-500">
-              Generated only from aggregates and pairings, not raw entries.
+              Generated only from aggregates and your saved memories — not raw entry text.
             </div>
           </CardBody>
         </Card>
       ) : null}
-
-      <Card>
-        <CardBody>
-          <div className="text-sm font-semibold text-neutral-900">Trust-first patterns</div>
-          <p className="mt-2 text-sm text-neutral-700">
-            These patterns are simple counts from labels you chose. They don’t claim causes, diagnoses, or “what it means.”
-            The reflection is generated from aggregates, not your full journal text.
-          </p>
-        </CardBody>
-      </Card>
     </div>
   );
 }

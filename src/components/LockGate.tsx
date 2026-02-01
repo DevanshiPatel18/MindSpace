@@ -10,7 +10,8 @@ export function LockGate({ children }: { children: React.ReactNode }) {
   const path = usePathname();
 
   React.useEffect(() => {
-    if (path === "/unlock") return;
+    if(path === "/unlock") return;
+    // if (path === "/unlock" || path.startsWith("/scripts/seed")) return;
     if (!getSessionKey()) router.replace("/unlock");
 
     let interval: number | undefined;

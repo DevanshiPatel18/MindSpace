@@ -25,7 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   Memory
 </Link>
 
-<Link href="/backup/import" className="text-neutral-700 hover:text-neutral-900">
+<Link href="/import" className="text-neutral-700 hover:text-neutral-900">
   Import
 </Link>
           </div>
