@@ -132,12 +132,14 @@ export async function generateTrustFirstReply(opts: {
   stepPrompt: string;
   userText: string;
   previousText?: string;
+  memories?: string[];
   model?: string;
 }) {
   const userPrompt = `
 Ritual: ${opts.ritualName}
 Step: ${opts.stepPrompt}
 ${opts.previousText ? `Previous step text (same session only): ${opts.previousText}` : ""}
+${opts.memories?.length ? `User-approved memories (context): \n${opts.memories.map(m => `- ${m}`).join("\n")}` : ""}
 
 User text:
 ${opts.userText}
