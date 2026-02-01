@@ -5,24 +5,34 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardBody } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { PageHeader } from "@/components/PageHeader";
-import { getEntryRecord, deleteEntryRecord } from "@/lib/storage";
+import { Toast, useToast } from "@/components/Toast";
+
+import { getEntryRecord, deleteEntryRecord, getSettings } from "@/lib/storage";
 import { getSessionKey } from "@/lib/session";
 import { decryptJson } from "@/lib/crypto";
 import { EntryPayload } from "@/lib/types";
 import { formatDate } from "@/lib/util";
+import { generateTrustFirstReply } from "@/lib/ai";
 
 export default function EntryPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { message, setMessage } = useToast();
+
   const [payload, setPayload] = React.useState<EntryPayload | null>(null);
   const [err, setErr] = React.useState("");
+
+  const [aiBusy, setAiBusy] = React.useState(false);
+  const [aiReflection, setAiReflection] = React.useState("");
 
   React.useEffect(() => {
     (async () => {
       const key = getSessionKey();
       if (!key) return router.replace("/unlock");
+
       const record = await getEntryRecord(params.id);
       if (!record) return setErr("Entry not found.");
+
       try {
         setPayload(await decryptJson<EntryPayload>(key, record.ciphertextB64, record.ivB64));
       } catch {
@@ -37,31 +47,108 @@ export default function EntryPage() {
     router.push("/archive");
   }
 
+  async function onReflect() {
+    if (!payload) return;
+
+    setAiBusy(true);
+    try {
+      const settings = await getSettings();
+      if (!settings.aiEnabled) return setMessage("AI is off. Enable it in Settings.");
+
+      const apiKey = settings.rememberAiKey
+        ? (settings.aiApiKey ?? "")
+        : (sessionStorage.getItem("ai_api_key") ?? "");
+
+      if (!apiKey) return setMessage("Add an AI API key in Settings.");
+
+      const input = `
+SINGLE ENTRY ONLY (no history):
+Ritual: ${payload.ritualName}
+Intent: ${payload.intent}
+
+Content:
+${payload.steps
+  .map((s, i) => `Step ${i + 1} prompt: ${s.prompt}\nUser: ${s.response}`)
+  .join("\n\n")}
+
+Write a gentle reflection:
+- No diagnosis, no labels
+- No claims about long-term patterns
+- Use tentative language
+- 2–5 sentences max
+- End with one optional question
+`.trim();
+
+      const reply = await generateTrustFirstReply({
+        apiKey,
+        ritualName: "Entry Reflection",
+        stepPrompt: "Reflect gently on this single entry only.",
+        userText: input,
+      });
+
+      setAiReflection(`${reply.reflection}${reply.question ? `\n\nQuestion: ${reply.question}` : ""}`);
+      setMessage("Reflection generated.");
+    } catch {
+      setMessage("Could not generate reflection.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   if (err) {
     return (
-      <Card>
-        <CardBody>
-          <div className="text-sm text-red-600">{err}</div>
-        </CardBody>
-      </Card>
+      <div className="space-y-6">
+        <Toast message={message} />
+        <Card>
+          <CardBody>
+            <div className="text-sm text-red-600">{err}</div>
+          </CardBody>
+        </Card>
+      </div>
     );
   }
 
   if (!payload) {
     return (
-      <Card>
-        <CardBody>Loading…</CardBody>
-      </Card>
+      <div className="space-y-6">
+        <Toast message={message} />
+        <Card>
+          <CardBody>Loading…</CardBody>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <Toast message={message} />
+
       <PageHeader
         title={payload.ritualName}
         subtitle={`${formatDate(payload.createdAt)} • ${payload.intent.replace("_", " ")}`}
-        right={<Button variant="danger" onClick={onDelete}>Delete</Button>}
+        right={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={onReflect} disabled={aiBusy}>
+              {aiBusy ? "Reflecting…" : "Reflect"}
+            </Button>
+            <Button variant="danger" onClick={onDelete}>
+              Delete
+            </Button>
+          </div>
+        }
       />
+
+      {aiReflection ? (
+        <Card>
+          <CardBody>
+            <div className="text-sm font-semibold text-neutral-900">Reflection</div>
+            <div className="mt-1 text-xs text-neutral-500">
+              Generated from this entry only (not your archive).
+            </div>
+            <div className="mt-3 whitespace-pre-wrap text-sm text-neutral-800">{aiReflection}</div>
+          </CardBody>
+        </Card>
+      ) : null}
 
       <div className="space-y-4">
         {payload.steps.map((s, i) => (
@@ -75,7 +162,9 @@ export default function EntryPage() {
       </div>
 
       <div className="flex gap-2">
-        <Button variant="secondary" onClick={() => router.push("/archive")}>Back</Button>
+        <Button variant="secondary" onClick={() => router.push("/archive")}>
+          Back
+        </Button>
         <Button onClick={() => router.push("/")}>New entry</Button>
       </div>
     </div>

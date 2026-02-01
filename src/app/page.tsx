@@ -1,24 +1,18 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { Card, CardBody } from "@/components/Card";
 import { Button } from "@/components/Button";
-import React from "react";
-import { MemoryItem } from "@/lib/types";
+import { PageHeader } from "@/components/PageHeader";
+import { listMemoryRecords, listEntryRecords } from "@/lib/storage";
 import { getSessionKey } from "@/lib/session";
-import { listMemoryRecords } from "@/lib/storage";
 import { decryptJson } from "@/lib/crypto";
+import type { MemoryItem } from "@/lib/types";
 import { formatDate } from "@/lib/util";
+import { computeStreak, lastEntryDate } from "@/lib/stats";
 
-function IntentCard({
-  title,
-  desc,
-  href,
-}: {
-  title: string;
-  desc: string;
-  href: string;
-}) {
+function IntentCard({ title, desc, href }: { title: string; desc: string; href: string }) {
   return (
     <Card className="hover:shadow-md transition">
       <CardBody>
@@ -36,66 +30,92 @@ function IntentCard({
   );
 }
 
-export default function Home() {
+export default function HomePage() {
   const [latestMemory, setLatestMemory] = React.useState<MemoryItem | null>(null);
+
+  const [streak, setStreak] = React.useState(0);
+  const [lastEntry, setLastEntry] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     (async () => {
       const key = getSessionKey();
       if (!key) return;
 
-      const records = await listMemoryRecords();
-      if (!records.length) return;
+      // Momentum: compute from entry record metadata (no decrypt needed)
+      const entryRecords = await listEntryRecords();
+      setStreak(computeStreak(entryRecords));
+      setLastEntry(lastEntryDate(entryRecords));
 
+      // Continuity memory (decrypt memory only)
+      const memRecords = await listMemoryRecords();
+      if (memRecords.length === 0) return;
+      const r = memRecords[0];
       try {
-        const mem = await decryptJson<MemoryItem>(
-          key,
-          records[0].ciphertextB64,
-          records[0].ivB64
-        );
-        setLatestMemory(mem);
-      } catch { }
+        const payload = await decryptJson<MemoryItem>(key, r.ciphertextB64, r.ivB64);
+        setLatestMemory(payload);
+      } catch {}
     })();
   }, []);
 
   return (
     <div className="space-y-6">
+      <PageHeader title="What would help right now?" subtitle="Private by default. You decide how deep to go." />
+
+      {/* Momentum card */}
       <Card>
         <CardBody>
-          <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-600">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Trust-first journaling • local-first • encrypted
-          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-neutral-900">Momentum</div>
+              <div className="mt-2 text-sm text-neutral-700">
+                {streak === 0 ? (
+                  <>No streak to maintain. Just a place to land.</>
+                ) : streak === 1 ? (
+                  <>You showed up <b>1 day</b> in a row.</>
+                ) : (
+                  <>You showed up <b>{streak} days</b> in a row.</>
+                )}
+              </div>
+              <div className="mt-1 text-xs text-neutral-500">
+                {lastEntry ? <>Last entry: {formatDate(lastEntry)}</> : <>No entries yet.</>}
+              </div>
+              <div className="mt-3 text-xs text-neutral-500">
+                No guilt. If you miss a day, the app doesn’t punish you—just offers a small restart.
+              </div>
+            </div>
 
-          <h1 className="mt-4 text-3xl font-bold tracking-tight text-neutral-900">Mindspace</h1>
-          <p className="mt-2 text-sm text-neutral-600 max-w-2xl">
-            A private journaling companion that helps you reflect without judgment.
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link href="/unlock">
-              <Button variant="secondary">Unlock</Button>
-            </Link>
-            <Link href="/archive">
-              <Button variant="ghost">Archive</Button>
-            </Link>
+            <div className="flex flex-col gap-2">
+              <Link href="/backup">
+                <Button variant="secondary">Backup</Button>
+              </Link>
+              <Link href="/archive">
+                <Button variant="ghost">Archive</Button>
+              </Link>
+            </div>
           </div>
         </CardBody>
       </Card>
 
-      {latestMemory && (
+      {latestMemory ? (
         <Card>
           <CardBody>
-            <div className="text-xs text-neutral-500">Previously saved</div>
-            <div className="mt-2 text-sm text-neutral-900 font-medium">
-              “{latestMemory.text}”
+            <div className="text-xs text-neutral-500">Continuity (optional)</div>
+            <div className="mt-2 text-sm text-neutral-800">
+              You previously saved:{" "}
+              <span className="font-semibold text-neutral-900">“{latestMemory.text}”</span>
             </div>
-            <div className="mt-1 text-xs text-neutral-500">
-              {formatDate(latestMemory.createdAt)}
+            <div className="mt-1 text-xs text-neutral-500">Saved {formatDate(latestMemory.createdAt)}</div>
+            <div className="mt-4 flex gap-2">
+              <Link href="/ritual/make-sense">
+                <Button>Start here</Button>
+              </Link>
+              <Link href="/ritual/end-the-day">
+                <Button variant="secondary">Start fresh</Button>
+              </Link>
             </div>
           </CardBody>
         </Card>
-      )}
+      ) : null}
 
       <div className="grid gap-4">
         <IntentCard
@@ -110,9 +130,21 @@ export default function Home() {
         />
         <IntentCard
           title="Help me write"
-          desc="Start small so the blank page isn’t scary."
+          desc="Start small. A guided sentence so the blank page isn’t scary."
           href="/ritual/one-sentence-start"
         />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Link href="/archive">
+          <Button variant="ghost">Go to Archive</Button>
+        </Link>
+        <Link href="/insights">
+          <Button variant="ghost">Explore Insights</Button>
+        </Link>
+        <Link href="/settings">
+          <Button variant="ghost">Settings</Button>
+        </Link>
       </div>
     </div>
   );
