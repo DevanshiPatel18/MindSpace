@@ -24,9 +24,10 @@ export default function ImportPage() {
       const parsed = parseBackupJson(text);
       setPreview(makePreview(parsed));
       setMessage("Backup loaded. Review preview before importing.");
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : "Could not read backup file.";
       setPreview(null);
-      setMessage(e?.message ?? "Could not read backup file.");
+      setMessage(err);
     } finally {
       setBusy(false);
     }
@@ -37,9 +38,10 @@ export default function ImportPage() {
       const parsed = parseBackupJson(raw);
       setPreview(makePreview(parsed));
       setMessage("Preview updated.");
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : "Invalid backup content.";
       setPreview(null);
-      setMessage(e?.message ?? "Invalid backup content.");
+      setMessage(err);
     }
   }
 
@@ -60,11 +62,12 @@ export default function ImportPage() {
 
       setMessage(
         `Import complete (${result.mode}). Entries: +${result.entriesImported} (skipped ${result.entriesSkipped}). ` +
-          `Memories: +${result.memoryImported} (skipped ${result.memorySkipped}). ` +
-          `${result.settingsApplied ? "Settings applied." : ""}`
+        `Memories: +${result.memoryImported} (skipped ${result.memorySkipped}). ` +
+        `${result.settingsApplied ? "Settings applied." : ""}`
       );
-    } catch (e: any) {
-      setMessage(e?.message ?? "Import failed.");
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : "Import failed.";
+      setMessage(err);
     } finally {
       setBusy(false);
     }

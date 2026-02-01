@@ -31,7 +31,6 @@ import {
   TrendingDown,
   Minus,
   Lightbulb,
-  Frown,
   Coffee,
 } from "lucide-react";
 

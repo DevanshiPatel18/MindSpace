@@ -107,7 +107,7 @@ export default function RitualPage() {
         const prev = stepsData.length ? stepsData[stepsData.length - 1].response : undefined;
         const reply = await generateTrustFirstReply({
           apiKey,
-          ritualName: ritual?.name,
+          ritualName: ritual?.name ?? "",
           stepPrompt: opts.prompt,
           userText: opts.response,
           previousText: prev,
@@ -152,7 +152,7 @@ export default function RitualPage() {
 
     setBusy(true);
     try {
-      const nextIndex = isLastMainStep ? ritual?.steps.length : stepIndex + 1;
+      const nextIndex = isLastMainStep ? (ritual?.steps.length ?? 0) : stepIndex + 1;
       await addStepAndMaybeAi({ prompt: step.prompt, response: text.trim(), nextIndex });
       setText("");
     } catch {
@@ -164,7 +164,7 @@ export default function RitualPage() {
 
   function onBack() {
     if (pendingAi) return; // keep user on the AI panel until they choose
-    if (!inMainSteps) return setStepIndex(ritual?.steps?.length - 1);
+    if (!inMainSteps) return setStepIndex((ritual?.steps?.length ?? 0) - 1);
     if (stepIndex === 0) return router.push("/");
     setStepIndex(stepIndex - 1);
   }
@@ -228,10 +228,10 @@ export default function RitualPage() {
 
       const payload: EntryPayload = {
         id: entryId,
+        ritualId: params.id,
+        ritualName: ritual?.name ?? "",
+        intent: ritual?.intent || "unload", // Fallback if undefined
         createdAt: new Date().toISOString(),
-        intent: ritual?.intent,
-        ritualId: ritual?.id,
-        ritualName: ritual?.name,
         steps: stepsData,
         tags: {
           emotion: emotion ?? null,
@@ -243,7 +243,7 @@ export default function RitualPage() {
       const saltB64 = await getOrCreateAppSaltB64();
 
       const record = {
-        ...newEncryptedRecordIndex(ritual?.intent, ritual?.name),
+        ...newEncryptedRecordIndex(ritual?.intent || "unload", ritual?.name ?? ""),
         id: entryId,
         createdAt: payload.createdAt,
         ciphertextB64,
@@ -291,7 +291,7 @@ export default function RitualPage() {
 
       <PageHeader
         title={ritual?.name}
-        subtitle={`${ritual?.durationLabel} • ${ritual?.intent.replace("_", " ")}`}
+        subtitle={`${ritual?.durationLabel} • ${ritual?.intent?.replace("_", " ")}`}
         right={
           <Button variant="ghost" onClick={() => router.push("/")}>
             Exit
@@ -378,6 +378,12 @@ export default function RitualPage() {
           <CardBody>
             <div className="text-xs text-neutral-500">
               Step {stepIndex + 1} of {ritual?.steps.length}
+            </div>
+            <div className="w-full bg-neutral-100 rounded-full h-1.5 mt-2">
+              <div
+                className="bg-neutral-900 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${((stepIndex + 1) / (ritual?.steps?.length || 1)) * 100}%` }}
+              />
             </div>
             <div className="mt-2 text-lg font-semibold text-neutral-900">{step?.prompt}</div>
 

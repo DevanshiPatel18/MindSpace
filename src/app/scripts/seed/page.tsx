@@ -23,8 +23,9 @@ export default function SeedPage() {
     try {
       const total = await seedDemoEntries();
       setMessage(`Seeded ${total} demo entries.`);
-    } catch (e: any) {
-      setMessage(e?.message ?? "Seeding failed.");
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : "Seeding failed.";
+      setMessage(err);
     } finally {
       setBusy(false);
     }
@@ -44,7 +45,7 @@ export default function SeedPage() {
           {!hasKey ? (
             <>
               <div className="text-sm text-neutral-700">
-                You're locked. Unlock in this tab, then come back to seed.
+                You&apos;re locked. Unlock in this tab, then come back to seed.
               </div>
               <Link href="/unlock?next=/scripts/seed">
                 <Button variant="secondary">Go to Unlock</Button>
@@ -53,7 +54,7 @@ export default function SeedPage() {
           ) : (
             <>
               <div className="text-sm text-neutral-700">
-                You're unlocked in this tab. Ready to seed.
+                You&apos;re unlocked in this tab. Ready to seed.
               </div>
               <Button onClick={onSeed} disabled={busy}>
                 {busy ? "Seeding..." : "Seed demo entries"}
