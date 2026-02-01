@@ -103,7 +103,7 @@ async function callChatCompletions(opts: BaseOpts & { system: string; user: stri
     response_format: { type: "json_object" },
   };
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetch("/api/ai", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${opts.apiKey}`,

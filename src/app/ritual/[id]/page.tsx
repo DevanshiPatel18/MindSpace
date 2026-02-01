@@ -100,10 +100,12 @@ export default function RitualPage() {
     let aiQuestion: string | null | undefined;
 
     if (s.aiEnabled) {
-      const apiKey = getApiKey(s);
-      if (!apiKey) {
-        setMessage("AI is on, but no API key is set. Add it in Settings.");
+      const apiKey = getApiKey(s) ?? "";
+
+      if (!apiKey && !s.useDefaultAiKey) {
+        setMessage("AI is on, but no key set. Add one or use default in Settings.");
       } else {
+        // Try with user key OR fallback to server proxy (if usage allowed)
         const prev = stepsData.length ? stepsData[stepsData.length - 1].response : undefined;
         const reply = await generateTrustFirstReply({
           apiKey,

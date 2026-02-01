@@ -107,8 +107,8 @@ export default function HomePage() {
         ? settings.aiApiKey ?? ""
         : sessionStorage.getItem("ai_api_key") ?? "";
 
-      if (!apiKey) {
-        setMessage("Add an AI API key in Settings.");
+      if (!apiKey && !settings.useDefaultAiKey) {
+        setMessage("Add an AI API key in Settings (or enable default key).");
         return;
       }
 

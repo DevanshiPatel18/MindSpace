@@ -60,7 +60,7 @@ export default function EntryPage() {
         ? (settings.aiApiKey ?? "")
         : (sessionStorage.getItem("ai_api_key") ?? "");
 
-      if (!apiKey) return setMessage("Add an AI API key in Settings.");
+      if (!apiKey && !settings.useDefaultAiKey) return setMessage("Add an AI API key in Settings (or enable default key).");
 
       const input = `
 SINGLE ENTRY ONLY (no history):

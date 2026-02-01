@@ -205,7 +205,7 @@ export default function InsightsPage() {
       const apiKey = settings.rememberAiKey
         ? (settings.aiApiKey ?? "")
         : (sessionStorage.getItem("ai_api_key") ?? "");
-      if (!apiKey) return setMessage("Add an AI API key in Settings.");
+      if (!apiKey && !settings.useDefaultAiKey) return setMessage("Add an AI API key in Settings (or enable default key).");
 
       const aggregatesText = `
 On-device aggregates (user-chosen labels; not interpretations):

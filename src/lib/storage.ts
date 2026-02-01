@@ -1,7 +1,8 @@
 import { openDB, DBSchema } from "idb";
 import type { EncryptedRecord, Settings } from "./types";
-import { makeRandomSalt } from "./crypto";
+import { makeRandomSalt, encryptJson, decryptJson } from "./crypto";
 import { b64FromBytes, uuid } from "./util";
+import { getSessionKey } from "./session";
 
 interface JournalDB extends DBSchema {
   entries: {
@@ -32,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   insightsEnabled: true,
   rememberAiKey: false,
   aiApiKey: undefined,
+  useDefaultAiKey: false,
 };
 
 async function getDB() {
@@ -62,12 +64,41 @@ export async function getOrCreateAppSaltB64(): Promise<string> {
 
 export async function getSettings(): Promise<Settings> {
   const db = await getDB();
-  return (await db.get("settings", "settings")) ?? DEFAULT_SETTINGS;
+  const s = (await db.get("settings", "settings")) ?? DEFAULT_SETTINGS;
+
+  // Attempt to decrypt AI API key if locked session matches
+  const key = getSessionKey();
+  if (key && s.encryptedAiApiKey && !s.aiApiKey) {
+    try {
+      const decrypted = await decryptJson<string>(key, s.encryptedAiApiKey.ciphertextB64, s.encryptedAiApiKey.ivB64);
+      // We return it as if it were plain, for the app to use
+      return { ...s, aiApiKey: decrypted };
+    } catch (e) {
+      console.warn("Could not decrypt settings key:", e);
+    }
+  }
+
+  return s;
 }
 
 export async function saveSettings(next: Settings) {
   const db = await getDB();
-  await db.put("settings", next, "settings");
+  const toSave = { ...next };
+
+  // If we are remembering the key, encrypt it before storing
+  // (We never store the plain aiApiKey in DB if we can help it)
+  const key = getSessionKey();
+  if (key && next.rememberAiKey && next.aiApiKey) {
+    const encrypted = await encryptJson(key, next.aiApiKey);
+    toSave.encryptedAiApiKey = encrypted;
+    delete toSave.aiApiKey; // Remove plain text
+  } else if (!next.rememberAiKey) {
+    // If not remembering, ensure we wipe both
+    delete toSave.aiApiKey;
+    delete toSave.encryptedAiApiKey;
+  }
+
+  await db.put("settings", toSave, "settings");
 }
 
 export async function saveEntryRecord(record: EncryptedRecord) {
