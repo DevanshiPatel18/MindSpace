@@ -10,7 +10,7 @@ export function LockGate({ children }: { children: React.ReactNode }) {
   const path = usePathname();
 
   React.useEffect(() => {
-    if(path === "/unlock") return;
+    if (path === "/unlock") return;
     // if (path === "/unlock" || path.startsWith("/scripts/seed")) return;
     if (!getSessionKey()) router.replace("/unlock");
 
@@ -39,6 +39,11 @@ export function LockGate({ children }: { children: React.ReactNode }) {
       window.removeEventListener("click", onActivity);
     };
   }, [router, path]);
+
+  // Prevent flash of protected content
+  if (path !== "/unlock" && !getSessionKey()) {
+    return null;
+  }
 
   return <>{children}</>;
 }
