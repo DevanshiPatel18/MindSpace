@@ -455,7 +455,7 @@ End with one optional question.
                 <Smile className="w-4 h-4 text-indigo-500" />
                 Emotions
               </div>
-              <div className="text-neutral-500 text-xs mt-0.5">How you've been feeling</div>
+              <div className="text-neutral-500 text-xs mt-0.5">How you&apos;ve been feeling</div>
             </div>
           </div>
           <CardBody className="pt-0">
@@ -475,7 +475,7 @@ End with one optional question.
                 <MapPin className="w-4 h-4 text-teal-500" />
                 Contexts
               </div>
-              <div className="text-neutral-500 text-xs mt-0.5">What's occupying your mind</div>
+              <div className="text-neutral-500 text-xs mt-0.5">What&apos;s occupying your mind</div>
             </div>
           </div>
           <CardBody className="pt-0">
@@ -550,7 +550,7 @@ End with one optional question.
             <div className="text-sm font-bold text-neutral-900">Saved Memories</div>
           </div>
           <div className="text-xs text-neutral-500 mb-4">
-            Key insights you've chosen to carry forward.
+            Key insights you&apos;ve chosen to carry forward.
           </div>
           <div className="space-y-2">
             {memories.length === 0 ? (
@@ -559,7 +559,7 @@ End with one optional question.
               memories.map((m, i) => (
                 <div key={i} className="flex items-start gap-3 rounded-xl bg-white border border-amber-100/50 px-4 py-3 shadow-sm">
                   <div className="mt-1 min-w-[6px] h-[6px] rounded-full bg-amber-400" />
-                  <span className="text-sm text-neutral-800 italic leading-relaxed">"{m}"</span>
+                  <span className="text-sm text-neutral-800 italic leading-relaxed">&quot;{m}&quot;</span>
                 </div>
               ))
             )}
