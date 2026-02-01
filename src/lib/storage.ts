@@ -106,9 +106,22 @@ export async function saveEntryRecord(record: EncryptedRecord) {
   await db.put("entries", record);
 }
 
-export async function listEntryRecords(): Promise<EncryptedRecord[]> {
+export async function listEntryRecords(
+  fromDate?: string, // ISO string
+  toDate?: string    // ISO string
+): Promise<EncryptedRecord[]> {
   const db = await getDB();
-  const all = await db.getAllFromIndex("entries", "by-createdAt");
+  let range: IDBKeyRange | undefined;
+  
+  if (fromDate && toDate) {
+    range = IDBKeyRange.bound(fromDate, toDate);
+  } else if (fromDate) {
+    range = IDBKeyRange.lowerBound(fromDate);
+  } else if (toDate) {
+    range = IDBKeyRange.upperBound(toDate);
+  }
+
+  const all = await db.getAllFromIndex("entries", "by-createdAt", range);
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
