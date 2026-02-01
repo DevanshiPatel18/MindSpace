@@ -10,6 +10,8 @@ import {
   listMemoryRecords,
   getSettings,
 } from "./storage";
+import { getSessionKey } from "./session";
+import { decryptJson } from "./crypto";
 
 const EncryptedRecordSchema = z.object({
   id: z.string().min(1),
@@ -48,6 +50,7 @@ export type ImportPreview = {
   entriesCount: number;
   memoryCount: number;
   settingsIncluded: boolean;
+  isDecryptable: boolean | null;
 };
 
 export type ImportMode = "merge" | "replace";
@@ -75,13 +78,29 @@ export function parseBackupJson(raw: string): BackupPayload {
   return result.data;
 }
 
-export function makePreview(data: BackupPayload): ImportPreview {
+export async function makePreview(data: BackupPayload): Promise<ImportPreview> {
+  const key = getSessionKey();
+  let isDecryptable: boolean | null = null;
+
+  if (key) {
+    const sample = (data.entries ?? [])[0] || (data.memory ?? [])[0];
+    if (sample) {
+      try {
+        await decryptJson(key, sample.ciphertextB64, sample.ivB64);
+        isDecryptable = true;
+      } catch {
+        isDecryptable = false;
+      }
+    }
+  }
+
   return {
     version: String(data.version ?? "v1"),
     exportedAt: data.exportedAt,
     entriesCount: data.entries?.length ?? 0,
     memoryCount: data.memory?.length ?? 0,
     settingsIncluded: Boolean(data.settings),
+    isDecryptable,
   };
 }
 

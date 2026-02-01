@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { Textarea } from "@/components/Field";
 import { Toast, useToast } from "@/components/Toast";
 import { applyImport, makePreview, parseBackupJson, type ImportMode, type ImportPreview } from "@/lib/backup-io";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 export default function ImportPage() {
   const { message, setMessage } = useToast();
@@ -22,7 +23,7 @@ export default function ImportPage() {
       const text = await file.text();
       setRaw(text);
       const parsed = parseBackupJson(text);
-      setPreview(makePreview(parsed));
+      setPreview(await makePreview(parsed));
       setMessage("Backup loaded. Review preview before importing.");
     } catch (e: unknown) {
       const err = e instanceof Error ? e.message : "Could not read backup file.";
@@ -33,10 +34,10 @@ export default function ImportPage() {
     }
   }
 
-  function onPreview() {
+  async function onPreview() {
     try {
       const parsed = parseBackupJson(raw);
-      setPreview(makePreview(parsed));
+      setPreview(await makePreview(parsed));
       setMessage("Preview updated.");
     } catch (e: unknown) {
       const err = e instanceof Error ? e.message : "Invalid backup content.";
@@ -122,6 +123,28 @@ export default function ImportPage() {
                 <div>Entries: <b>{preview.entriesCount}</b></div>
                 <div>Memories: <b>{preview.memoryCount}</b></div>
                 <div>Settings included: <b>{preview.settingsIncluded ? "Yes" : "No"}</b></div>
+
+                <div className="mt-4 pt-4 border-t border-neutral-200">
+                  {preview.isDecryptable === true ? (
+                    <div className="flex items-center gap-2 text-emerald-600 font-medium">
+                      <ShieldCheck className="w-5 h-5" />
+                      <span>Matches current passphrase. Data will be readable after import.</span>
+                    </div>
+                  ) : preview.isDecryptable === false ? (
+                    <div className="flex items-start gap-2 text-rose-600 font-medium bg-rose-50 p-3 rounded-xl border border-rose-100">
+                      <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
+                      <div>
+                        <div>Passphrase Mismatch Error</div>
+                        <p className="mt-1 text-xs font-normal text-rose-500 leading-relaxed">
+                          This backup was encrypted with a different passphrase.
+                          You can still import it, but you won't be able to read
+                          the entries unless you unlock the session with the original
+                          passphrase later.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
               <div className="mt-2 text-xs text-neutral-500">
                 Note: AI keys are never imported.

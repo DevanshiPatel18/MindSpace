@@ -252,9 +252,9 @@ export default function HomePage() {
         <Link href="/memory">
           <Button variant="ghost">Memories</Button>
         </Link>
-        {/* <Link href="/scripts/seed">
+        <Link href="/scripts/seed">
           <Button variant="ghost">Seed demo entries</Button>
-        </Link> */}
+        </Link>
       </div>
     </div>
   );

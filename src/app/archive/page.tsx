@@ -7,13 +7,14 @@ import { PageHeader } from "@/components/PageHeader";
 import { listEntryRecords } from "@/lib/storage";
 import { formatDate } from "@/lib/util";
 import { Button } from "@/components/Button";
-import { Search, Sparkles } from "lucide-react";
+import { AlertCircle, Search, Sparkles } from "lucide-react";
 
 import { getSessionKey } from "@/lib/session";
 import { decryptJson } from "@/lib/crypto";
 
 export default function ArchivePage() {
   const [records, setRecords] = React.useState<Awaited<ReturnType<typeof listEntryRecords>>>([]);
+  const [lockedCount, setLockedCount] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
 
   // Filters
@@ -43,18 +44,19 @@ export default function ArchivePage() {
       }
 
       const valid: typeof all = [];
+      let locked = 0;
       for (const r of all) {
         try {
-          // Decrypt to verify access
           await decryptJson(key, r.ciphertextB64, r.ivB64);
           valid.push(r);
         } catch {
-          // invalid
+          locked++;
         }
       }
       setRecords(valid);
+      setLockedCount(locked);
       setLoading(false);
-      setPage(1); // Reset to page 1 on filter change
+      setPage(1);
     })();
   }, [startDate, endDate]);
 
@@ -116,7 +118,7 @@ export default function ArchivePage() {
         <Card>
           <CardBody>Loading...</CardBody>
         </Card>
-      ) : records.length === 0 ? (
+      ) : records.length === 0 && lockedCount === 0 ? (
         <Card>
           <CardBody>
             <div className="text-sm text-neutral-700">No entries found for this period.</div>
@@ -129,23 +131,40 @@ export default function ArchivePage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-3">
-            {displayed.map((r) => (
-              <Link key={r.id} href={`/entry/${r.id}`}>
-                <Card className="hover:shadow-md transition">
-                  <CardBody className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-semibold text-neutral-900">{r.ritualName}</div>
-                      <div className="mt-1 text-xs text-neutral-500">
-                        {formatDate(r.createdAt)} • {r.intent.replace("_", " ")}
+          {lockedCount > 0 && (
+            <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 animate-in fade-in slide-in-from-top-2 duration-300">
+              <AlertCircle className="w-5 h-5 shrink-0 text-amber-600" />
+              <div>
+                <strong>{lockedCount} entries are locked.</strong> These were likely imported from a backup using a different passphrase.
+              </div>
+            </div>
+          )}
+
+          {records.length > 0 ? (
+            <div className="grid gap-3">
+              {displayed.map((r) => (
+                <Link key={r.id} href={`/entry/${r.id}`}>
+                  <Card className="hover:shadow-md transition">
+                    <CardBody className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-semibold text-neutral-900">{r.ritualName}</div>
+                        <div className="mt-1 text-xs text-neutral-500">
+                          {formatDate(r.createdAt)} • {r.intent.replace("_", " ")}
+                        </div>
                       </div>
-                    </div>
-                    <Button variant="secondary">Open</Button>
-                  </CardBody>
-                </Card>
-              </Link>
-            ))}
-          </div>
+                      <Button variant="secondary">Open</Button>
+                    </CardBody>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          ) : lockedCount > 0 ? (
+            <Card>
+              <CardBody>
+                <div className="text-sm text-neutral-700 italic">No readable entries found. All entries in this period are locked.</div>
+              </CardBody>
+            </Card>
+          ) : null}
 
           {/* Pagination Controls */}
           {totalPages > 1 && (

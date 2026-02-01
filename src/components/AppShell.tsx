@@ -22,18 +22,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link href="/insights" className="text-neutral-700 hover:text-neutral-900">
                 Insights
               </Link>
-              <Link className="text-neutral-700 hover:text-neutral-900" href="/settings">
-                Settings
+              <Link href="/memory" className="text-neutral-700 hover:text-neutral-900">
+                Memory
               </Link>
               <Link href="/backup" className="text-neutral-700 hover:text-neutral-900">
                 Backup
               </Link>
-              <Link href="/memory" className="text-neutral-700 hover:text-neutral-900">
-                Memory
-              </Link>
 
               <Link href="/import" className="text-neutral-700 hover:text-neutral-900">
                 Import
+              </Link>
+              <Link className="text-neutral-700 hover:text-neutral-900" href="/settings">
+                Settings
               </Link>
             </div>
           )}

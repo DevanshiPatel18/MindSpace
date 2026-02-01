@@ -103,7 +103,7 @@ export default function SettingsPage() {
                 {!useDefaultAiKey && (
                   <>
                     <Field
-                      label="AI API Key"
+                      label="OpenAI API Key"
                       hint="Stored in-session by default. If you enable 'remember', it will be saved in local settings."
                     >
                       <Input
