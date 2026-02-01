@@ -46,7 +46,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ---
 
 ## 4. Deployment & Test Access
-*   **Live Demo URL**: [Mindspace](https://mind-space-al3aqh6f4-devanshipatel18s-projects.vercel.app/))
+*   **Live Demo URL**: [Mindspace](https://mind-space-nine-xi.vercel.app/unlock)
 
 ### 4.1 Testing Analytics with Seeded History
 To see the **Insights Dashboard** and **Journal Recall** in action without writing weeks of data manually:
