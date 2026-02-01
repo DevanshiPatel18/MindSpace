@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const json = await res.json();
     return NextResponse.json(json);
 
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("AI Proxy Error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
