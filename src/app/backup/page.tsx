@@ -34,9 +34,14 @@ export default function BackupPage() {
         title="Backup"
         subtitle="Export an encrypted backup of your journal records from this device."
         right={
-          <Link href="/">
-            <Button variant="secondary">Home</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/backup/import">
+              <Button variant="secondary">Import</Button>
+            </Link>
+            <Link href="/">
+              <Button variant="secondary">Home</Button>
+            </Link>
+          </div>
         }
       />
 
