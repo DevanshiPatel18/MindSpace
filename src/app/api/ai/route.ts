@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
 
   } catch (e: unknown) {
     console.error("AI Proxy Error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
