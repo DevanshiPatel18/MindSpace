@@ -18,7 +18,7 @@ export async function deriveKeyFromPassphrase(passphrase: string, salt: Uint8Arr
   ]);
 
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
     baseKey,
     { name: "AES-GCM", length: 256 },
     false,
@@ -38,6 +38,7 @@ export async function encryptJson(key: CryptoKey, value: unknown) {
 export async function decryptJson<T>(key: CryptoKey, ciphertextB64: string, ivB64: string): Promise<T> {
   const iv = bytesFromB64(ivB64);
   const ciphertext = bytesFromB64(ciphertextB64);
-  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as any }, key, ciphertext as any);
   return JSON.parse(new TextDecoder().decode(plaintext)) as T;
 }

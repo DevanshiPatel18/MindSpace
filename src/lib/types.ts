@@ -34,4 +34,6 @@ export type Settings = {
   autoLockMinutes: number;
   rememberAiKey: boolean;
   aiApiKey?: string;
+  useDefaultAiKey: boolean;
+  encryptedAiApiKey?: { ciphertextB64: string; ivB64: string };
 };

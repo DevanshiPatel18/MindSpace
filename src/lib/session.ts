@@ -12,6 +12,9 @@ export function getSessionKey() {
 }
 export function clearSessionKey() {
   sessionKey = null;
+  if (typeof window !== "undefined") {
+    sessionStorage.removeItem("ai_api_key");
+  }
 }
 export function touch() {
   lastActive = Date.now();

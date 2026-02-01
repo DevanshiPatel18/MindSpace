@@ -21,15 +21,17 @@ export default function SettingsPage() {
 
   const [rememberAiKey, setRememberAiKey] = React.useState(false);
   const [aiKey, setAiKey] = React.useState("");
+  const [useDefaultAiKey, setUseDefaultAiKey] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
       const s = await getSettings();
-      setAiEnabled(s.aiEnabled);
-      setInsightsEnabled(s.insightsEnabled);
-      setAutoLockMinutes(s.autoLockMinutes);
-      setRememberAiKey(s.rememberAiKey);
+      setAiEnabled(s.aiEnabled ?? true);
+      setInsightsEnabled(s.insightsEnabled ?? true);
+      setAutoLockMinutes(s.autoLockMinutes ?? 10);
+      setRememberAiKey(s.rememberAiKey ?? false);
       setAiKey(s.aiApiKey ?? "");
+      setUseDefaultAiKey(s.useDefaultAiKey ?? false);
     })();
   }, []);
 
@@ -40,12 +42,17 @@ export default function SettingsPage() {
       autoLockMinutes,
       rememberAiKey,
       aiApiKey: rememberAiKey ? aiKey.trim() : undefined,
+      useDefaultAiKey,
     };
 
     await saveSettings(next);
 
-    if (!rememberAiKey && aiKey.trim()) {
-      sessionStorage.setItem("ai_api_key", aiKey.trim());
+    if (!rememberAiKey) {
+      if (aiKey.trim()) {
+        sessionStorage.setItem("ai_api_key", aiKey.trim());
+      } else {
+        sessionStorage.removeItem("ai_api_key");
+      }
     }
 
     setMessage("Saved settings.");
@@ -94,11 +101,19 @@ export default function SettingsPage() {
                   placeholder="Paste key"
                   type="password"
                 />
-            <div className="text-xs text-neutral-500">
-              If AI is enabled, only the text you write in the current step is sent to the AI API to generate a short reflection.
-              Your archive is not uploaded.
-            </div>
+                <div className="text-xs text-neutral-500">
+                  If AI is enabled, only the text you write in the current step is sent to the AI API to generate a short reflection.
+                  Your archive is not uploaded.
+                </div>
               </Field>
+
+              <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
+                <div>
+                  <div className="text-sm font-semibold text-neutral-900">Use default key</div>
+                  <div className="text-xs text-neutral-500 mt-0.5">Use the key provided by the server (if available).</div>
+                </div>
+                <input type="checkbox" checked={useDefaultAiKey} onChange={(e) => setUseDefaultAiKey(e.target.checked)} />
+              </div>
 
               <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4">
                 <div>

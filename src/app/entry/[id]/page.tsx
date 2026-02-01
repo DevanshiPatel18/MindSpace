@@ -25,6 +25,12 @@ export default function EntryPage() {
   const [aiBusy, setAiBusy] = React.useState(false);
   const [aiReflection, setAiReflection] = React.useState("");
 
+  async function onDelete() {
+    if (!confirm("Delete this entry?")) return;
+    await deleteEntryRecord(params.id);
+    router.push("/archive");
+  }
+
   React.useEffect(() => {
     (async () => {
       const key = getSessionKey();
@@ -35,17 +41,12 @@ export default function EntryPage() {
 
       try {
         setPayload(await decryptJson<EntryPayload>(key, record.ciphertextB64, record.ivB64));
-      } catch {
-        setErr("Could not decrypt entry.");
+      } catch (e) {
+        console.error("Decryption failed:", e);
+        setErr("DECRYPT_FAILED");
       }
     })();
   }, [params.id, router]);
-
-  async function onDelete() {
-    if (!confirm("Delete this entry?")) return;
-    await deleteEntryRecord(params.id);
-    router.push("/archive");
-  }
 
   async function onReflect() {
     if (!payload) return;
@@ -59,7 +60,7 @@ export default function EntryPage() {
         ? (settings.aiApiKey ?? "")
         : (sessionStorage.getItem("ai_api_key") ?? "");
 
-      if (!apiKey) return setMessage("Add an AI API key in Settings.");
+      if (!apiKey && !settings.useDefaultAiKey) return setMessage("Add an AI API key in Settings (or enable default key).");
 
       const input = `
 SINGLE ENTRY ONLY (no history):
@@ -68,8 +69,8 @@ Intent: ${payload.intent}
 
 Content:
 ${payload.steps
-  .map((s, i) => `Step ${i + 1} prompt: ${s.prompt}\nUser: ${s.response}`)
-  .join("\n\n")}
+          .map((s, i) => `Step ${i + 1} prompt: ${s.prompt}\nUser: ${s.response}`)
+          .join("\n\n")}
 
 Write a gentle reflection:
 - No diagnosis, no labels
@@ -93,6 +94,26 @@ Write a gentle reflection:
     } finally {
       setAiBusy(false);
     }
+  }
+
+  if (err === "DECRYPT_FAILED") {
+    return (
+      <div className="space-y-6">
+        <Toast message={message} />
+        <PageHeader title="Encrypted Entry" subtitle="This entry is locked." />
+        <Card className="border-red-100 bg-red-50">
+          <CardBody>
+            <div className="text-red-700 font-semibold mb-2">Could not decrypt this entry.</div>
+            <div className="text-sm text-red-600 mb-4">
+              It may have been saved with a different passphrase, or the data is corrupted.
+            </div>
+            <Button variant="danger" onClick={onDelete}>
+              Delete this entry
+            </Button>
+          </CardBody>
+        </Card>
+      </div>
+    );
   }
 
   if (err) {
@@ -156,6 +177,20 @@ Write a gentle reflection:
             <CardBody>
               <div className="text-xs text-neutral-500">{s.prompt}</div>
               <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-900">{s.response}</div>
+              {/* Display stored AI reflection from the ritual */}
+              {(s.aiReflection || s.aiQuestion) && (
+                <div className="mt-3 rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 p-3 border border-indigo-100">
+                  <div className="text-xs text-indigo-600 font-medium mb-1">AI Reflection</div>
+                  {s.aiReflection && (
+                    <div className="text-sm text-neutral-700">{s.aiReflection}</div>
+                  )}
+                  {s.aiQuestion && (
+                    <div className="mt-2 text-sm text-neutral-600 italic">
+                      <span className="font-medium not-italic">Question:</span> {s.aiQuestion}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardBody>
           </Card>
         ))}

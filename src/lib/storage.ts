@@ -1,26 +1,42 @@
 import { openDB, DBSchema } from "idb";
-import { EncryptedRecord, Settings } from "./types";
-import { makeRandomSalt, getKdfVersion } from "./crypto";
+import type { EncryptedRecord, Settings } from "./types";
+import { makeRandomSalt, encryptJson, decryptJson } from "./crypto";
 import { b64FromBytes, uuid } from "./util";
+import { getSessionKey } from "./session";
 
 interface JournalDB extends DBSchema {
-  entries: { key: string; value: EncryptedRecord; indexes: { "by-createdAt": string } };
-  memory: { key: string; value: EncryptedRecord; indexes: { "by-createdAt": string } };
-  settings: { key: string; value: Settings };
-  meta: { key: string; value: { appSaltB64: string } };
+  entries: {
+    key: string;
+    value: EncryptedRecord;
+    indexes: { "by-createdAt": string };
+  };
+  memory: {
+    key: string;
+    value: EncryptedRecord;
+    indexes: { "by-createdAt": string };
+  };
+  settings: {
+    key: string;
+    value: Settings;
+  };
+  meta: {
+    key: string;
+    value: { appSaltB64: string };
+  };
 }
 
-const DB_NAME = "mindspace_v1";
+const DB_NAME = "trust_first_journal_v1";
 
 const DEFAULT_SETTINGS: Settings = {
   aiEnabled: true,
-  insightsEnabled: true,
   autoLockMinutes: 10,
+  insightsEnabled: true,
   rememberAiKey: false,
   aiApiKey: undefined,
+  useDefaultAiKey: false,
 };
 
-async function db() {
+async function getDB() {
   return openDB<JournalDB>(DB_NAME, 1, {
     upgrade(d) {
       const entries = d.createObjectStore("entries", { keyPath: "id" });
@@ -36,76 +52,112 @@ async function db() {
 }
 
 export async function getOrCreateAppSaltB64(): Promise<string> {
-  const d = await db();
-  const existing = await d.get("meta", "appSalt");
+  const db = await getDB();
+  const existing = await db.get("meta", "appSalt");
   if (existing?.appSaltB64) return existing.appSaltB64;
 
   const salt = makeRandomSalt();
   const appSaltB64 = b64FromBytes(salt);
-  await d.put("meta", { appSaltB64 }, "appSalt");
+  await db.put("meta", { appSaltB64 }, "appSalt");
   return appSaltB64;
 }
 
 export async function getSettings(): Promise<Settings> {
-  const d = await db();
-  return (await d.get("settings", "settings")) ?? DEFAULT_SETTINGS;
+  const db = await getDB();
+  const s = (await db.get("settings", "settings")) ?? DEFAULT_SETTINGS;
+
+  // Attempt to decrypt AI API key if locked session matches
+  const key = getSessionKey();
+  if (key && s.encryptedAiApiKey && !s.aiApiKey) {
+    try {
+      const decrypted = await decryptJson<string>(key, s.encryptedAiApiKey.ciphertextB64, s.encryptedAiApiKey.ivB64);
+      // We return it as if it were plain, for the app to use
+      return { ...s, aiApiKey: decrypted };
+    } catch (e) {
+      console.warn("Could not decrypt settings key:", e);
+    }
+  }
+
+  return s;
 }
 
 export async function saveSettings(next: Settings) {
-  const d = await db();
-  await d.put("settings", next, "settings");
+  const db = await getDB();
+  const toSave = { ...next };
+
+  // If we are remembering the key, encrypt it before storing
+  // (We never store the plain aiApiKey in DB if we can help it)
+  const key = getSessionKey();
+  if (key && next.rememberAiKey && next.aiApiKey) {
+    const encrypted = await encryptJson(key, next.aiApiKey);
+    toSave.encryptedAiApiKey = encrypted;
+    delete toSave.aiApiKey; // Remove plain text
+  } else if (!next.rememberAiKey) {
+    // If not remembering, ensure we wipe both
+    delete toSave.aiApiKey;
+    delete toSave.encryptedAiApiKey;
+  }
+
+  await db.put("settings", toSave, "settings");
 }
 
 export async function saveEntryRecord(record: EncryptedRecord) {
-  const d = await db();
-  await d.put("entries", record);
+  const db = await getDB();
+  await db.put("entries", record);
 }
 
 export async function listEntryRecords(): Promise<EncryptedRecord[]> {
-  const d = await db();
-  const all = await d.getAllFromIndex("entries", "by-createdAt");
+  const db = await getDB();
+  const all = await db.getAllFromIndex("entries", "by-createdAt");
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export async function getEntryRecord(id: string): Promise<EncryptedRecord | undefined> {
-  const d = await db();
-  return d.get("entries", id);
+  const db = await getDB();
+  return db.get("entries", id);
 }
 
 export async function deleteEntryRecord(id: string) {
-  const d = await db();
-  await d.delete("entries", id);
+  const db = await getDB();
+  await db.delete("entries", id);
 }
 
 export async function deleteAllEntries() {
-  const d = await db();
-  const keys = await d.getAllKeys("entries");
-  await Promise.all(keys.map((k) => d.delete("entries", k as string)));
+  const db = await getDB();
+  const keys = await db.getAllKeys("entries");
+  await Promise.all(keys.map((k) => db.delete("entries", k as string)));
 }
 
 export async function saveMemoryRecord(record: EncryptedRecord) {
-  const d = await db();
-  await d.put("memory", record);
+  const db = await getDB();
+  await db.put("memory", record);
 }
 
 export async function listMemoryRecords(): Promise<EncryptedRecord[]> {
-  const d = await db();
-  const all = await d.getAllFromIndex("memory", "by-createdAt");
+  const db = await getDB();
+  const all = await db.getAllFromIndex("memory", "by-createdAt");
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export async function deleteMemoryRecord(id: string) {
-  const d = await db();
-  await d.delete("memory", id);
+  const db = await getDB();
+  await db.delete("memory", id);
 }
 
-/** Helper to make record metadata consistent */
-export function makeRecordIndex(intent: EncryptedRecord["intent"], ritualName: string) {
+export function newEncryptedRecordIndex(
+  intent: EncryptedRecord["intent"],
+  ritualName: string
+) {
   return {
     id: uuid(),
     createdAt: new Date().toISOString(),
     intent,
     ritualName,
-    kdfVersion: getKdfVersion(),
   };
+}
+
+export async function deleteAllMemoryRecords() {
+  const db = await getDB();
+  const keys = await db.getAllKeys("memory");
+  await Promise.all(keys.map((k) => db.delete("memory", k as string)));
 }

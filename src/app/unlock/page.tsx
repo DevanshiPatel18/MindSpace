@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardBody } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { deriveKeyFromPassphrase } from "@/lib/crypto";
@@ -11,6 +11,7 @@ import { setSessionKey } from "@/lib/session";
 
 export default function UnlockPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pass, setPass] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
@@ -23,7 +24,12 @@ export default function UnlockPage() {
       const saltB64 = await getOrCreateAppSaltB64();
       const key = await deriveKeyFromPassphrase(pass, bytesFromB64(saltB64));
       setSessionKey(key);
-      router.replace("/");
+      const nextPath = searchParams.get("next");
+      if (nextPath && nextPath.startsWith("/")) {
+        router.replace(nextPath);
+      } else {
+        router.replace("/");
+      }
     } catch {
       setErr("Could not unlock. Check your passphrase.");
     } finally {
