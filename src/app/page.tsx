@@ -56,16 +56,28 @@ export default function HomePage() {
       const key = getSessionKey();
       if (!key) return;
 
-      const records = await listEntryRecords();
-      setStreak(computeStreak(records));
-      setLastAt(lastEntryDate(records));
+      const allRecords = await listEntryRecords();
 
-      // Decrypt only the latest entry to get user-chosen tags (not the whole archive).
-      if (records[0]) {
+      // Filter valid entries
+      const validRecords: typeof allRecords = [];
+      for (const r of allRecords) {
         try {
-          const latest = await decryptJson<EntryPayload>(key, records[0].ciphertextB64, records[0].ivB64);
+          await decryptJson(key, r.ciphertextB64, r.ivB64);
+          validRecords.push(r);
+        } catch { }
+      }
+
+      setStreak(computeStreak(validRecords));
+      setLastAt(lastEntryDate(validRecords));
+
+      // Get latest tags from the first valid entry
+      if (validRecords[0]) {
+        try {
+          const latest = await decryptJson<EntryPayload>(key, validRecords[0].ciphertextB64, validRecords[0].ivB64);
           setLastTags({ emotion: latest.tags?.emotion ?? null, context: latest.tags?.context ?? null });
-        } catch {}
+        } catch (e) {
+          console.warn("Could not decrypt latest entry:", e);
+        }
       }
 
       // Latest memory sentence (user-approved)
@@ -74,7 +86,9 @@ export default function HomePage() {
         try {
           const m = await decryptJson<MemoryItem>(key, memRecords[0].ciphertextB64, memRecords[0].ivB64);
           setLatestMemory(m);
-        } catch {}
+        } catch (e) {
+          console.warn("Could not decrypt memory:", e);
+        }
       }
     })();
   }, []);

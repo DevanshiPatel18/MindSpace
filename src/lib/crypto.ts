@@ -38,6 +38,7 @@ export async function encryptJson(key: CryptoKey, value: unknown) {
 export async function decryptJson<T>(key: CryptoKey, ciphertextB64: string, ivB64: string): Promise<T> {
   const iv = bytesFromB64(ivB64);
   const ciphertext = bytesFromB64(ciphertextB64);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as any }, key, ciphertext as any);
   return JSON.parse(new TextDecoder().decode(plaintext)) as T;
 }

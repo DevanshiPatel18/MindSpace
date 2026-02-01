@@ -8,7 +8,6 @@ export function setSessionKey(key: CryptoKey) {
   touch();
 }
 export function getSessionKey() {
-  console.log("Getting session key:", sessionKey);
   return sessionKey;
 }
 export function clearSessionKey() {

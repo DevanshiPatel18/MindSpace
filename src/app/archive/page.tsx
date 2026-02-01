@@ -8,18 +8,48 @@ import { listEntryRecords } from "@/lib/storage";
 import { formatDate } from "@/lib/util";
 import { Button } from "@/components/Button";
 
+import { getSessionKey } from "@/lib/session";
+import { decryptJson } from "@/lib/crypto";
+
 export default function ArchivePage() {
   const [records, setRecords] = React.useState<Awaited<ReturnType<typeof listEntryRecords>>>([]);
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    (async () => setRecords(await listEntryRecords()))();
+    (async () => {
+      const all = await listEntryRecords();
+      const key = getSessionKey();
+      if (!key) {
+        setRecords([]);
+        setLoading(false);
+        return;
+      }
+
+      const valid: typeof all = [];
+      for (const r of all) {
+        try {
+          // Verify we can decrypt it. We don't need the payload, just success.
+          // Optimization: decryptJson is seemingly fast enough for local use.
+          await decryptJson(key, r.ciphertextB64, r.ivB64);
+          valid.push(r);
+        } catch {
+          // Skip invalid/different-passphrase entries
+        }
+      }
+      setRecords(valid);
+      setLoading(false);
+    })();
   }, []);
 
   return (
     <div className="space-y-6">
       <PageHeader title="Archive" subtitle="Your entries, stored locally and encrypted." />
 
-      {records.length === 0 ? (
+      {loading ? (
+        <Card>
+          <CardBody>Loading...</CardBody>
+        </Card>
+      ) : records.length === 0 ? (
         <Card>
           <CardBody>
             <div className="text-sm text-neutral-700">No entries yet.</div>
