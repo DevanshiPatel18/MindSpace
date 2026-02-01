@@ -10,6 +10,7 @@ export type BackupFileV1 = {
     autoLockMinutes: number;
     insightsEnabled: boolean;
     rememberAiKey: boolean;
+    useDefaultAiKey: boolean;
   };
 };
 
@@ -30,6 +31,7 @@ export async function createBackup(): Promise<BackupFileV1> {
       autoLockMinutes: settings.autoLockMinutes,
       insightsEnabled: settings.insightsEnabled,
       rememberAiKey: false, // intentionally safer
+      useDefaultAiKey: settings.useDefaultAiKey,
     },
   };
 }
