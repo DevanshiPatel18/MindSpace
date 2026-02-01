@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-export function AppShell({ children }: { children: React.ReactNode }) { 
-    return (
-        <div className="min-h-screen bg-neutral-50">
+export function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-neutral-50">
       <div className="mx-auto max-w-3xl px-4 py-10 md:py-12">
         <div className="mb-8 flex items-center justify-between">
           <Link href="/" className="text-sm font-semibold text-neutral-900 tracking-tight">
@@ -15,6 +15,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/insights" className="text-neutral-700 hover:text-neutral-900">
               Insights
             </Link>
+            <Link className="text-neutral-700 hover:text-neutral-900" href="/settings">
+              Settings
+            </Link>
           </div>
         </div>
         {children}
@@ -23,5 +26,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </div>
-    )
+  )
 }
