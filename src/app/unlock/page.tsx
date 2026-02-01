@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardBody } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -9,7 +9,7 @@ import { getOrCreateAppSaltB64 } from "@/lib/storage";
 import { bytesFromB64 } from "@/lib/util";
 import { setSessionKey } from "@/lib/session";
 
-export default function UnlockPage() {
+function UnlockContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pass, setPass] = React.useState("");
@@ -74,5 +74,13 @@ export default function UnlockPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function UnlockPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[70vh] grid place-items-center">Loading...</div>}>
+      <UnlockContent />
+    </Suspense>
   );
 }
