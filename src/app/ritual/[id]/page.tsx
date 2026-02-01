@@ -12,6 +12,29 @@ import { getOrCreateAppSaltB64, saveEntryRecord, saveMemoryRecord } from "@/lib/
 import { EntryPayload, MemoryItem } from "@/lib/types";
 import { uuid } from "@/lib/util";
 
+const EMOTIONS = [
+  "calm",
+  "stressed",
+  "anxious",
+  "sad",
+  "angry",
+  "grateful",
+  "tired",
+  "hopeful",
+  "frustrated",
+] as const;
+
+const CONTEXTS = [
+  "work",
+  "relationships",
+  "family",
+  "health",
+  "self",
+  "money",
+  "future",
+  "school",
+] as const;
+
 export default function RitualPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -23,6 +46,8 @@ export default function RitualPage() {
   const [busy, setBusy] = React.useState(false);
   const [saveMemory, setSaveMemory] = React.useState<"unset" | "yes" | "no">("unset");
   const [memoryText, setMemoryText] = React.useState("");
+  const [emotion, setEmotion] = React.useState<string>("");
+  const [context, setContext] = React.useState<string>("");
 
   if (!ritual) {
     return (
@@ -61,7 +86,10 @@ export default function RitualPage() {
         ritualId: ritual?.id ?? 'unknown_ritual',
         ritualName: ritual?.name ?? 'Unknown Ritual',
         steps,
-        tags: { emotion: null, context: null },
+        tags: {
+          emotion: emotion || null,
+          context: context || null,
+        },
       };
 
       if (ritual?.intent === "make_sense" && saveMemory === "yes" && memoryText.trim()) {
@@ -144,7 +172,50 @@ export default function RitualPage() {
                   <p className="mt-1 text-xs text-neutral-500">
                     This is for continuity only. You choose what matters.
                   </p>
+                  <Card className="bg-neutral-50">
+                    <CardBody>
+                      <div className="text-sm font-semibold text-neutral-900">
+                        Optional tags (for your private insights)
+                      </div>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        These are descriptive labels you choose. No scores. No judgment.
+                      </p>
 
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <div className="text-xs font-semibold text-neutral-700 mb-2">Emotion</div>
+                          <select
+                            className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+                            value={emotion}
+                            onChange={(e) => setEmotion(e.target.value)}
+                          >
+                            <option value="">—</option>
+                            {EMOTIONS.map((e) => (
+                              <option key={e} value={e}>
+                                {e}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-semibold text-neutral-700 mb-2">Context</div>
+                          <select
+                            className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+                            value={context}
+                            onChange={(e) => setContext(e.target.value)}
+                          >
+                            <option value="">—</option>
+                            {CONTEXTS.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
                   <div className="mt-4 flex gap-2">
                     <Button
                       variant={saveMemory === "yes" ? "primary" : "secondary"}
