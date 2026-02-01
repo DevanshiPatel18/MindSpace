@@ -56,6 +56,10 @@ const EMOTION_ICON: Record<string, React.ReactNode> = {
   angry: <Flame className="w-5 h-5 text-red-500" />,
   happy: <Smile className="w-5 h-5 text-emerald-500" />,
   overwhelmed: <Waves className="w-5 h-5 text-cyan-600" />,
+  reflective: <BookOpen className="w-5 h-5 text-indigo-400" />,
+  curious: <Compass className="w-5 h-5 text-amber-500" />,
+  productive: <Zap className="w-5 h-5 text-yellow-500" />,
+  excited: <Flame className="w-5 h-5 text-orange-500" />,
 };
 
 // Default fallback icon
@@ -71,11 +75,16 @@ const CONTEXT_ICON_MAP: Record<string, React.ReactNode> = {
   money: <DollarSign className="w-5 h-5 text-emerald-600" />,
   future: <Compass className="w-5 h-5 text-indigo-400" />,
   school: <BookOpen className="w-5 h-5 text-amber-600" />,
+  projects: <Zap className="w-5 h-5 text-yellow-500" />,
+  dreams: <Moon className="w-5 h-5 text-purple-400" />,
+  travel: <Compass className="w-5 h-5 text-sky-500" />,
+  exercise: <Activity className="w-5 h-5 text-rose-500" />,
 };
 
 function getIcon(key: string, type: "emotion" | "context") {
-  if (type === "emotion") return EMOTION_ICON[key] || DEFAULT_ICON;
-  return CONTEXT_ICON_MAP[key] || DEFAULT_ICON;
+  const k = key.toLowerCase().trim();
+  if (type === "emotion") return EMOTION_ICON[k] || DEFAULT_ICON;
+  return CONTEXT_ICON_MAP[k] || DEFAULT_ICON;
 }
 
 function topN(map: Map<string, number>, n: number): Bucket {
@@ -264,10 +273,10 @@ End with one optional question.
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-white border border-neutral-100 px-4 py-3 shadow-sm">
         {icon && <div className="p-2 bg-neutral-50 rounded-full">{icon}</div>}
-        <div>
-          <div className="text-2xl font-bold text-neutral-900 leading-none">{value}</div>
+        <div className="min-w-0">
+          <div className="text-2xl font-bold text-neutral-900 break-words line-clamp-2 leading-tight">{value}</div>
           <div className="text-xs text-neutral-500 mt-1">{label}</div>
-          {subtext && <div className="text-[10px] text-neutral-400 mt-0.5">{subtext}</div>}
+          {subtext && <div className="text-[10px] text-neutral-400 mt-0.5 truncate">{subtext}</div>}
         </div>
       </div>
     );
@@ -320,9 +329,9 @@ End with one optional question.
                       style={{ height: `${Math.max((v / maxCount) * 80, 10)}%` }}
                       title={`${k}: ${v}`}
                     />
-                    <div className="flex flex-col items-center gap-1">
+                    <div className="flex flex-col items-center gap-1 w-full">
                       {getIcon(k, type)}
-                      <span className="text-[10px] text-neutral-500 truncate max-w-[60px] text-center font-medium capitalize">
+                      <span className="text-[10px] text-neutral-500 truncate w-full text-center font-medium">
                         {k}
                       </span>
                     </div>
@@ -339,14 +348,14 @@ End with one optional question.
                     key={k}
                     className={`flex items-center gap-3 rounded-xl ${BG_COLORS[i % BG_COLORS.length]} px-3 py-2.5 transition-all hover:scale-[1.01]`}
                   >
-                    <div className="p-1.5 bg-white/60 rounded-full shadow-sm">
+                    <div className="p-1.5 bg-white/60 rounded-full shadow-sm shrink-0">
                       {getIcon(k, type)}
                     </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-neutral-800 capitalize">{k}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-neutral-800 break-words leading-tight">{k}</div>
                       <div className="text-[10px] text-neutral-500">{percentage}% of entries</div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <div className="text-lg font-bold text-neutral-700">{v}</div>
                     </div>
                   </div>
@@ -375,10 +384,10 @@ End with one optional question.
               const thisVal = thisMap.get(k) ?? 0;
               const lastVal = lastMap.get(k) ?? 0;
               return (
-                <div key={k} className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-neutral-50 transition-colors">
-                  {getIcon(k, type)}
-                  <span className="flex-1 text-neutral-700 capitalize font-medium">{k}</span>
-                  <div className="flex items-center gap-3">
+                <div key={k} className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-neutral-50 transition-colors min-w-0">
+                  <div className="shrink-0">{getIcon(k, type)}</div>
+                  <span className="flex-1 text-neutral-700 font-medium truncate">{k}</span>
+                  <div className="flex items-center gap-3 shrink-0">
                     <span className="font-bold text-neutral-900">{thisVal}</span>
                     <span className="text-neutral-300 text-xs">vs {lastVal}</span>
                     <TrendArrow current={thisVal} previous={lastVal} />
@@ -395,13 +404,13 @@ End with one optional question.
   function PairingPill({ pairing, count, index }: { pairing: string; count: number; index: number }) {
     const [emotion, context] = pairing.split(" + ");
     return (
-      <div className={`inline-flex items-center gap-2 rounded-full border border-neutral-100 bg-white px-3 py-1.5 shadow-sm hover:shadow-md transition-shadow`}>
-        {getIcon(emotion, "emotion")}
-        <span className="text-xs font-medium text-neutral-600 capitalize">{emotion}</span>
-        <span className="text-neutral-300">|</span>
-        {getIcon(context, "context")}
-        <span className="text-xs font-medium text-neutral-600 capitalize">{context}</span>
-        <span className="ml-1 text-[10px] font-bold text-white bg-neutral-900 rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
+      <div className={`inline-flex items-center gap-2 rounded-full border border-neutral-100 bg-white px-3 py-1.5 shadow-sm hover:shadow-md transition-shadow max-w-full overflow-hidden`}>
+        <div className="shrink-0">{getIcon(emotion, "emotion")}</div>
+        <span className="text-xs font-medium text-neutral-600 truncate max-w-[80px]">{emotion}</span>
+        <span className="text-neutral-300 shrink-0">|</span>
+        <div className="shrink-0">{getIcon(context, "context")}</div>
+        <span className="text-xs font-medium text-neutral-600 truncate max-w-[80px]">{context}</span>
+        <span className="ml-1 text-[10px] font-bold text-white bg-neutral-900 rounded-full px-1.5 py-0.5 min-w-[20px] text-center shrink-0">
           {count}
         </span>
       </div>

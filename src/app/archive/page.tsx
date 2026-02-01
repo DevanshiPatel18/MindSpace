@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { listEntryRecords } from "@/lib/storage";
 import { formatDate } from "@/lib/util";
 import { Button } from "@/components/Button";
+import { Search, Sparkles } from "lucide-react";
 
 import { getSessionKey } from "@/lib/session";
 import { decryptJson } from "@/lib/crypto";
@@ -65,7 +66,17 @@ export default function ArchivePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Archive" subtitle="Your entries, stored locally and encrypted." />
+      <PageHeader
+        title="Archive"
+        subtitle="Your entries, stored locally and encrypted."
+        right={
+          <Link href="/recall">
+            <Button variant="secondary" className="gap-2">
+              <Sparkles className="w-4 h-4" /> Recall AI
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Filters */}
       <Card>

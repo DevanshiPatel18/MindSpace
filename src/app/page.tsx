@@ -13,6 +13,7 @@ import type { EntryPayload, MemoryItem } from "@/lib/types";
 import { formatDate } from "@/lib/util";
 import { computeStreak, lastEntryDate } from "@/lib/stats";
 import { generateTrustFirstNudge, type AiNudge } from "@/lib/ai";
+import { Sparkles } from "lucide-react";
 
 function IntentCard({
   title,
@@ -243,12 +244,17 @@ export default function HomePage() {
         <Link href="/insights">
           <Button variant="ghost">Explore Insights</Button>
         </Link>
+        <Link href="/recall">
+          <Button variant="secondary" className="gap-2">
+            <Sparkles className="w-4 h-4" /> Recall AI
+          </Button>
+        </Link>
         <Link href="/memory">
           <Button variant="ghost">Memories</Button>
         </Link>
-        <Link href="/scripts/seed">
-          <Button variant="secondary">Seed demo entries</Button>
-        </Link>
+        {/* <Link href="/scripts/seed">
+          <Button variant="ghost">Seed demo entries</Button>
+        </Link> */}
       </div>
     </div>
   );

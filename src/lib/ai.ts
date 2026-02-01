@@ -14,6 +14,30 @@ const AiNudgeSchema = z.object({
 export type AiReply = z.infer<typeof AiReplySchema>;
 export type AiNudge = z.infer<typeof AiNudgeSchema>;
 
+const RecallReplySchema = z.object({
+  answer: z.string().min(1),
+  relevantEntryIds: z.array(z.string()).optional(),
+});
+export type RecallReply = z.infer<typeof RecallReplySchema>;
+
+const HistoryEntrySchema = z.object({
+  daysAgo: z.number(),
+  intent: z.enum(["unload", "make_sense", "help_write"]),
+  emotion: z.string(),
+  context: z.string(),
+  steps: z.array(z.object({
+    prompt: z.string(),
+    response: z.string(),
+    aiReflection: z.string().nullable().optional(),
+    aiQuestion: z.string().nullable().optional(),
+  })),
+});
+
+const HistoryGenSchema = z.object({
+  entries: z.array(HistoryEntrySchema),
+});
+export type HistoryGen = z.infer<typeof HistoryGenSchema>;
+
 type BaseOpts = {
   apiKey: string;
   model?: string;
@@ -94,7 +118,7 @@ Return ONLY valid JSON:
 
 async function callChatCompletions(opts: BaseOpts & { system: string; user: string }) {
   const body = {
-    model: opts.model ?? "gpt-4.1-mini",
+    model: opts.model ?? "gpt-4o-mini",
     temperature: 0.5,
     messages: [
       { role: "system", content: opts.system },
@@ -120,6 +144,8 @@ async function callChatCompletions(opts: BaseOpts & { system: string; user: stri
   const json = await res.json();
   const content = json?.choices?.[0]?.message?.content;
   if (!content) throw new Error("AI returned no content");
+  
+  console.log("Raw AI Response:", content);
   return JSON.parse(content);
 }
 
@@ -218,4 +244,109 @@ export async function generateTrustFirstInsightsReflection(opts: {
     reflection: parsed.reflection,
     question: parsed.question ?? null,
   };
+}
+
+function recallSystemPrompt() {
+  return `
+${baseSystemPrompt()}
+
+Task:
+- You are a research assistant helping the user recall their past.
+- Answer the user's question based ONLY on the provided journal entries.
+- Use a gentle, descriptive tone.
+- QUOTE verbatim when possible: (Date) "[quote]".
+- If you don't find a specific answer, say so gently and suggest what *is* there.
+
+Return ONLY valid JSON:
+{
+  "answer": string,
+  "relevantEntryIds": string[]
+}
+`.trim();
+}
+
+function historyGenSystemPrompt() {
+  return `
+${baseSystemPrompt()}
+
+Task:
+- Generate 10 diverse, meaningful journal entries for a demo user.
+- Vary the themes: work, health, money, family, self-discovery, joy, grief.
+- Return ONLY valid JSON with an "entries" array.
+
+Schema Template:
+{
+  "entries": [
+    {
+      "daysAgo": number (0-14),
+      "intent": "unload" | "make_sense" | "help_write",
+      "emotion": string (Preferred: Calm, Stressed, Anxious, Grateful, Hopeful, Tired, Frustrated, Sad, Angry, Happy, Overwhelmed),
+      "context": string (Preferred: Work, Health, Family, Self, Relationships, Money, Future, School),
+      "steps": [
+        { "prompt": string, "response": string, "aiReflection": string | null (optional), "aiQuestion": string | null (optional) }
+      ]
+    }
+  ]
+}
+
+Hard Rules:
+- unload: exactly 2 steps.
+- make_sense: exactly 4 steps.
+- help_write: exactly 2 steps.
+`.trim();
+}
+
+/**
+ * Used for Q&A over past entries.
+ */
+export async function generateRecallReply(opts: {
+  apiKey: string;
+  question: string;
+  contextText: string;
+  model?: string;
+}) {
+  const userPrompt = `
+Journal Context:
+${opts.contextText}
+
+Question: ${opts.question}
+`.trim();
+
+  return RecallReplySchema.parse(
+    await callChatCompletions({
+      apiKey: opts.apiKey,
+      model: opts.model,
+      system: recallSystemPrompt(),
+      user: userPrompt,
+    })
+  );
+}
+
+/**
+ * Used for dynamic seeding.
+ */
+export async function generateAiHistory(opts: {
+  apiKey: string;
+  userContext?: string;
+  model?: string;
+}) {
+  const userPrompt = `
+Generate a 10-entry history. 
+Context (optional): ${opts.userContext ?? "A person trying to find balance between a busy tech job and personal health."}
+
+Rules:
+- daysAgo should be between 0 and 14.
+- Use EXACT intent IDs: "unload", "make_sense", "help_write".
+- Emotion & Context MUST be short labels (1-2 words max). NO sentences.
+- steps: match the ritual structure exactly (unload=2 steps, make_sense=4 steps, help_write=2 steps).
+`.trim();
+
+  return HistoryGenSchema.parse(
+    await callChatCompletions({
+      apiKey: opts.apiKey,
+      model: opts.model,
+      system: historyGenSystemPrompt(),
+      user: userPrompt,
+    })
+  );
 }
