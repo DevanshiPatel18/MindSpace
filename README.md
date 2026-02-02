@@ -46,6 +46,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ---
 
 ## 4. Deployment & Test Access
+*   **Youtube Demo URL**: [Mindspace](https://youtu.be/4oJD4lEBOcg)
 *   **Live Demo URL**: [Mindspace](https://mind-space-nine-xi.vercel.app/unlock)
 
 ### 4.1 Testing Analytics with Seeded History
